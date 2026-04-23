@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-900 text-gray-100 font-sans antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-800;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-blue-700 rounded-full;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-800 border border-white/5 rounded-2xl p-5;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-500 active:bg-blue-700
+           text-white font-semibold px-6 py-3 rounded-xl
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-surface-900;
+  }
+}
+
+/* Markdown-like rendering inside AI text */
+.ai-content h3 {
+  @apply text-base font-semibold text-blue-300 mt-5 mb-2;
+}
+.ai-content p {
+  @apply text-gray-300 leading-relaxed mb-3;
+}
+.ai-content ul {
+  @apply space-y-1.5 mb-3;
+}
+.ai-content li {
+  @apply text-gray-300 leading-relaxed pl-4 relative;
+}
+.ai-content li::before {
+  content: "▸";
+  @apply absolute left-0 text-blue-400;
+}

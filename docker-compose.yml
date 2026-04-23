@@ -1,0 +1,41 @@
+version: "3.9"
+
+# =============================================================================
+# Atlas LoL — Docker Compose
+#
+# Uso:
+#   docker compose up --build
+#
+# A RIOT_API_KEY é lida do arquivo backend/.env — nunca hardcode aqui.
+# Crie backend/.env baseado em .env.example:
+#   cp .env.example backend/.env
+#   # edite backend/.env com suas chaves reais
+# =============================================================================
+
+services:
+  atlas:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: runner
+
+    container_name: atlas-lol
+
+    ports:
+      - "4000:4000"
+
+    # Injeta variáveis de ambiente de backend/.env
+    env_file:
+      - ./backend/.env
+
+    environment:
+      - NODE_ENV=production
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
