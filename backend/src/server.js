@@ -11,6 +11,13 @@ const {
 } = require("./utils/laneDetector");
 const { analyzeWithGemini } = require("./services/aiCoach");
 const { synthesize }        = require("./services/dataSynthesizer");
+const {
+  analyzeDeathImpact,
+  detectTiltPattern,
+  earlyGameRisk,
+  generateCoachingReport,
+} = require("./services/analysisEngine");
+const { calculateGroupRanking } = require("./services/groupBenchmark");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -533,6 +540,7 @@ app.get("/api/player/:riotId", async (req, res) => {
         kda:          ar.kda,
         durationMin:  Math.round(info.gameDuration / 60),
         isAnomaly:    ar.isAnomaly,
+        firstBlood:   player.firstBloodKill || player.firstBloodAssist || false,
         analysis: {
           positives:         ar.positives,
           negatives:         ar.negatives,
@@ -759,6 +767,151 @@ app.get("/api/ai-coach/:matchId", async (req, res) => {
       return res.status(s).json({ error: err.friendly });
     }
     return res.status(s).json({ error: "Erro na análise de IA.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 4: GET /api/analysis/:matchId?puuid=xxx
+//
+// Correlação mortes × objetivos de uma partida específica.
+// Reutiliza TIMELINE_CACHE se disponível — sem custo de API extra.
+// =============================================================================
+
+app.get("/api/analysis/:matchId", async (req, res) => {
+  const { matchId } = req.params;
+  const { puuid }   = req.query;
+
+  if (!puuid) return res.status(400).json({ error: "puuid é obrigatório como query param." });
+
+  log("ANALYSIS REQUEST", matchId);
+
+  try {
+    // Reutiliza cache de timeline se já foi buscada pelo frontend
+    const cacheKey    = `${matchId}:${puuid}`;
+    let timelineResult = cacheGet(TIMELINE_CACHE, cacheKey);
+
+    if (!timelineResult) {
+      let matchData = cacheGet(MATCH_CACHE, matchId);
+      if (!matchData) {
+        matchData = await riotGet(`https://${REGION_ACCOUNT}.api.riotgames.com/lol/match/v5/matches/${matchId}`);
+        cacheSet(MATCH_CACHE, matchId, matchData);
+      }
+      const timelineData = await riotGet(`https://${REGION_ACCOUNT}.api.riotgames.com/lol/match/v5/matches/${matchId}/timeline`);
+      timelineResult     = processTimeline(timelineData, matchData, puuid);
+
+      const mParticipants = matchData.info.participants;
+      const playerP       = mParticipants.find(p => p.puuid === puuid);
+      if (playerP) {
+        const frames     = timelineData.info.frames;
+        const myLane     = detectLane(playerP, frames);
+        const opponentId = findOpponent(playerP, mParticipants, myLane, frames);
+        const opponent   = opponentId ? mParticipants.find(p => p.participantId === opponentId) : null;
+        timelineResult.lane             = myLane;
+        timelineResult.myParticipantId  = playerP.participantId;
+        timelineResult.myChampion       = playerP.championName;
+        timelineResult.opponentId       = opponentId ?? null;
+        timelineResult.opponentChampion = opponent?.championName ?? null;
+        timelineResult.opponentName     = opponent?.riotIdGameName ?? opponent?.summonerName ?? null;
+        if (opponentId) {
+          timelineResult.laneGoldDiff = calculateLaneGoldDiff(frames, playerP.participantId, opponentId);
+          timelineResult.laneAnalysis = analyseLaneDiff(timelineResult.laneGoldDiff, playerP.championName, opponent?.championName);
+        }
+      }
+      cacheSet(TIMELINE_CACHE, cacheKey, timelineResult);
+    }
+
+    const deathImpact = analyzeDeathImpact(timelineResult.events ?? []);
+    log("ANALYSIS OK", `matchId=${matchId} | criticalDeaths=${deathImpact.criticalDeaths}/${deathImpact.totalDeaths}`);
+    return res.json({ matchId, champion: timelineResult.myChampion ?? null, ...deathImpact });
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("ANALYSIS ERRO", `${s} — ${err.message}`);
+    return res.status(s).json({ error: "Erro ao analisar partida.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 5: GET /api/coaching-report/:riotId
+//
+// Relatório de coaching completo: tilt, early risk e síntese.
+// Requer que /api/player/:riotId tenha sido chamado antes (usa PLAYER_CACHE).
+// =============================================================================
+
+app.get("/api/coaching-report/:riotId", async (req, res) => {
+  const rawId = req.params.riotId;
+
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("COACHING-REPORT REQUEST", rawId);
+
+  try {
+    // Resolve PUUID para consultar o cache
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    const playerData = cacheGet(PLAYER_CACHE, puuid);
+    if (!playerData) {
+      return res.status(404).json({
+        error: "Dados do jogador não encontrados no cache. Busque o jogador em /api/player/:riotId antes de gerar o relatório.",
+      });
+    }
+
+    const { recentMatches, diagnosis } = playerData;
+
+    const tiltData = detectTiltPattern(recentMatches);
+    const earlyRisk = earlyGameRisk(recentMatches);
+    const report   = generateCoachingReport({ tiltData, earlyRisk, diagnosis });
+
+    log("COACHING-REPORT OK", `${rawId} | insights=${report.insights.length} | tilt=${tiltData?.susceptibleToTilt ?? "n/a"}`);
+    return res.json({
+      riotId: rawId,
+      tiltAnalysis: tiltData,
+      earlyRiskAnalysis: earlyRisk,
+      ...report,
+    });
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("COACHING-REPORT ERRO", `${s} — ${err.message}`);
+    return res.status(s).json({ error: "Erro ao gerar coaching report.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 6: POST /api/group-ranking
+//
+// Compara métricas do jogador atual com o grupo (amigos/time).
+// O frontend envia os stats de todos os membros já buscados.
+//
+// Body: {
+//   currentPlayer: { riotId: "Nome#TAG", stats: { winrate, kda, ... } },
+//   groupPlayers:  [{ riotId: "Nome2#TAG", stats: {...} }, ...]
+// }
+// =============================================================================
+
+app.post("/api/group-ranking", (req, res) => {
+  const { currentPlayer, groupPlayers } = req.body ?? {};
+
+  if (!currentPlayer || !currentPlayer.riotId || !currentPlayer.stats) {
+    return res.status(400).json({ error: "currentPlayer com riotId e stats é obrigatório." });
+  }
+  if (!Array.isArray(groupPlayers) || groupPlayers.length === 0) {
+    return res.status(400).json({ error: "groupPlayers deve ser um array não-vazio." });
+  }
+
+  log("GROUP-RANKING REQUEST", `${currentPlayer.riotId} vs ${groupPlayers.length} jogador(es)`);
+
+  try {
+    const result = calculateGroupRanking(currentPlayer, groupPlayers);
+    log("GROUP-RANKING OK", result.report);
+    return res.json(result);
+  } catch (err) {
+    log("GROUP-RANKING ERRO", err.message);
+    return res.status(400).json({ error: err.message });
   }
 });
 
