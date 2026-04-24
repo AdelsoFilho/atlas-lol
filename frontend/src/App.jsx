@@ -5,8 +5,9 @@ import {
   Crosshair, CheckSquare, Square, Activity, AlertTriangle,
   Swords, Repeat2, Trophy,
 } from "lucide-react";
-import MatchList from "./components/MatchList";
-import SearchBar from "./components/SearchBar";
+import MatchList        from "./components/MatchList";
+import SearchBar        from "./components/SearchBar";
+import CoachingReport   from "./components/CoachingReport";
 
 // ─── Helpers de cor ──────────────────────────────────────────────────────────
 
@@ -241,6 +242,9 @@ export default function App() {
                     <MatchList matches={matches} puuid={puuid} />
                   </div>
                 )}
+
+                {/* ── Relatório de Coaching ─────────────────────────── */}
+                <CoachingReport riotId={`${gameName}#${tagLine}`} />
 
                 {/* ── Diagnóstico Geral ──────────────────────────────── */}
                 {diagnosis && (
