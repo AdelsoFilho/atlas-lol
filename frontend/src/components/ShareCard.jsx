@@ -101,7 +101,7 @@ export default function ShareCard({ riotId, stats, matches }) {
     setExporting(true);
     try {
       // Tenta importar html-to-image dinamicamente
-      const { toPng } = await import("html-to-image");
+      const { toPng } = await import(/* @vite-ignore */ "html-to-image");
       const dataUrl = await toPng(cardRef.current, { quality: 0.95, pixelRatio: 2 });
       const link = document.createElement("a");
       link.download = `atlas-${riotId?.replace("#", "-")}.png`;
