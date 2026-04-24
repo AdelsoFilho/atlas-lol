@@ -18,6 +18,8 @@ const {
   generateCoachingReport,
 } = require("./services/analysisEngine");
 const { calculateGroupRanking } = require("./services/groupBenchmark");
+const { analyzeMatchups }       = require("./services/matchupAnalyzer");
+const { generateDailyQuests }   = require("./services/dailyQuests");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -912,6 +914,82 @@ app.post("/api/group-ranking", (req, res) => {
   } catch (err) {
     log("GROUP-RANKING ERRO", err.message);
     return res.status(400).json({ error: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 7: GET /api/matchups/:riotId
+//
+// Análise de matchups e kryptonitas do jogador.
+// Requer que /api/player/:riotId tenha sido chamado antes (usa PLAYER_CACHE).
+// =============================================================================
+
+app.get("/api/matchups/:riotId", async (req, res) => {
+  const rawId = req.params.riotId;
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("MATCHUPS REQUEST", rawId);
+
+  try {
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    const playerData = cacheGet(PLAYER_CACHE, puuid);
+    if (!playerData) {
+      return res.status(404).json({
+        error: "Jogador não encontrado no cache. Busque o perfil em /api/player/:riotId primeiro.",
+      });
+    }
+
+    const result = analyzeMatchups(playerData.recentMatches ?? []);
+    log("MATCHUPS OK", `${rawId} | kryptonites=${result.kryptonites.length} | toxicMatchups=${result.toxicMatchups.length}`);
+    return res.json({ riotId: rawId, ...result });
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("MATCHUPS ERRO", `${s} — ${err.message}`);
+    return res.status(s).json({ error: "Erro ao analisar matchups.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 8: GET /api/quests/:riotId
+//
+// Gera 3 missões diárias baseadas nas fraquezas recentes do jogador.
+// Requer que /api/player/:riotId tenha sido chamado antes (usa PLAYER_CACHE).
+// =============================================================================
+
+app.get("/api/quests/:riotId", async (req, res) => {
+  const rawId = req.params.riotId;
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("QUESTS REQUEST", rawId);
+
+  try {
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    const playerData = cacheGet(PLAYER_CACHE, puuid);
+    if (!playerData) {
+      return res.status(404).json({
+        error: "Jogador não encontrado no cache. Busque o perfil em /api/player/:riotId primeiro.",
+      });
+    }
+
+    const result = generateDailyQuests(playerData.recentMatches ?? []);
+    log("QUESTS OK", `${rawId} | quests=${result.quests.length} | basedOn=${result.basedOn} partidas`);
+    return res.json({ riotId: rawId, ...result });
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("QUESTS ERRO", `${s} — ${err.message}`);
+    return res.status(s).json({ error: "Erro ao gerar missões.", detail: err.message });
   }
 });
 
