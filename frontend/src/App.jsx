@@ -13,6 +13,7 @@ import RadarEvolucao    from "./components/RadarEvolucao";
 import MatchupPanel     from "./components/MatchupPanel";
 import NextGameMode     from "./components/NextGameMode";
 import ShareCard        from "./components/ShareCard";
+import LiveMatchOverlay from "./components/LiveMatchOverlay";
 
 // ─── Helpers de cor ──────────────────────────────────────────────────────────
 
@@ -217,6 +218,9 @@ export default function App() {
 
             {stats && (
               <>
+                {/* ── War Room ao Vivo ───────────────────────────────── */}
+                <LiveMatchOverlay riotId={`${gameName}#${tagLine}`} />
+
                 {/* ── Navegação por Abas ─────────────────────────────── */}
                 <div className="flex gap-1 bg-surface-800 border border-white/5 rounded-2xl p-1">
                   {[

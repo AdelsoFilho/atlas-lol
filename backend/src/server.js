@@ -20,12 +20,14 @@ const {
 const { calculateGroupRanking } = require("./services/groupBenchmark");
 const { analyzeMatchups }       = require("./services/matchupAnalyzer");
 const { generateDailyQuests }   = require("./services/dailyQuests");
+const { getLiveGame, getSimulatedGame } = require("./services/liveSpectator");
 
 const app = express();
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-const REGION_ACCOUNT = "americas";
+const REGION_ACCOUNT   = "americas";
+const REGION_PLATFORM  = process.env.RIOT_PLATFORM ?? "br1";
 
 // =============================================================================
 // CACHE EM MEMÓRIA
@@ -994,6 +996,53 @@ app.get("/api/quests/:riotId", async (req, res) => {
 });
 
 // =============================================================================
+// ROTA 9: GET /api/live/:riotId
+//
+// Retorna dados da partida ao vivo + Momentum Score.
+// Cache inteligente: 180s para partida ativa, 60s para "não está em jogo".
+// Query param ?simulate=true retorna dados simulados (para testes de UI).
+// =============================================================================
+
+app.get("/api/live/:riotId", async (req, res) => {
+  const rawId    = req.params.riotId;
+  const simulate = req.query.simulate === "true";
+
+  if (simulate) {
+    log("LIVE SIM", rawId);
+    return res.json(getSimulatedGame());
+  }
+
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("LIVE REQUEST", rawId);
+
+  try {
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    // Passa histórico do jogador se disponível (enriquece o Momentum Score)
+    const playerData    = cacheGet(PLAYER_CACHE, puuid);
+    const playerHistory = playerData ? {
+      winrate: playerData.stats?.winrate,
+      kda:     playerData.stats?.kda,
+    } : null;
+
+    const result = await getLiveGame(puuid, REGION_PLATFORM, riotGet, playerHistory);
+    log("LIVE OK", `${rawId} | isLive=${result.isLive} | fromCache=${result.fromCache} | score=${result.momentumScore ?? "N/A"}`);
+    return res.json(result);
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("LIVE ERRO", `${s} — ${err.message}`);
+    if (s === 404) return res.status(404).json({ error: "Jogador não encontrado." });
+    return res.status(s).json({ error: "Erro ao buscar partida ao vivo.", detail: err.message });
+  }
+});
+
+// =============================================================================
 // ESTÁTICOS (produção) + HEALTH
 // =============================================================================
 
@@ -1002,8 +1051,10 @@ app.get("/health", (_req, res) => res.json({
   cacheSize: {
     matches:   MATCH_CACHE.size,
     timelines: TIMELINE_CACHE.size,
+    players:   PLAYER_CACHE.size,
     ai:        AI_CACHE.size,
   },
+  platform:  REGION_PLATFORM,
   aiEnabled: !!process.env.GROQ_API_KEY,
 }));
 
@@ -1018,6 +1069,7 @@ app.listen(PORT, "0.0.0.0", () => {
   const env = process.env.NODE_ENV ?? "development";
   console.log(`\n🚀 Atlas Server → http://0.0.0.0:${PORT}  [${env}]`);
   console.log(`   RIOT_API_KEY : ✅ ${RIOT_API_KEY.slice(0, 12)}…`);
-  console.log(`   Cache        : ✅ match / timeline / player (TTL 15 min)`);
+  console.log(`   Cache        : ✅ match / timeline / player (TTL 15 min) | live (180s/60s)`);
+  console.log(`   Plataforma   : ✅ ${REGION_PLATFORM} (override: RIOT_PLATFORM env var)`);
   console.log(`   Concorrência : ✅ 5 requests simultâneos por lote (20 partidas)\n`);
 });
