@@ -3,7 +3,7 @@ import axios from "axios";
 import {
   TrendingUp, Coins, Loader2, AlertCircle, Shield,
   Crosshair, CheckSquare, Square, Activity, AlertTriangle,
-  Swords, Repeat2, Trophy, Target, Gamepad2, BarChart3,
+  Swords, Repeat2, Trophy, Target, Gamepad2, BarChart3, Radio,
 } from "lucide-react";
 import MatchList        from "./components/MatchList";
 import SearchBar        from "./components/SearchBar";
@@ -13,7 +13,8 @@ import RadarEvolucao    from "./components/RadarEvolucao";
 import MatchupPanel     from "./components/MatchupPanel";
 import NextGameMode     from "./components/NextGameMode";
 import ShareCard        from "./components/ShareCard";
-import LiveMatchOverlay from "./components/LiveMatchOverlay";
+import LiveMatchOverlay  from "./components/LiveMatchOverlay";
+import WarRoomDashboard  from "./components/WarRoomDashboard";
 
 // ─── Helpers de cor ──────────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ export default function App() {
                     { id: "missoes",    label: "Missões",      Icon: Target    },
                     { id: "matchups",   label: "Matchups",     Icon: Swords    },
                     { id: "proximo",    label: "Próximo Jogo", Icon: Gamepad2  },
+                    { id: "warroom",    label: "War Room",     Icon: Radio     },
                   ].map(({ id, label, Icon }) => (
                     <button
                       key={id}
@@ -235,12 +237,20 @@ export default function App() {
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl
                                   text-xs font-semibold transition-all ${
                         activeTab === id
-                          ? "bg-blue-600 text-white shadow"
+                          ? id === "warroom"
+                              ? "bg-cyan-700 text-white shadow"
+                              : "bg-blue-600 text-white shadow"
                           : "text-gray-500 hover:text-gray-300 hover:bg-surface-700"
                       }`}
                     >
                       <Icon size={11} className="hidden sm:block shrink-0" />
                       <span className="truncate">{label}</span>
+                      {id === "warroom" && (
+                        <span className="relative flex h-1.5 w-1.5 ml-0.5 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500" />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -400,6 +410,11 @@ export default function App() {
                 {/* ── Aba: Próximo Jogo ─────────────────────────────── */}
                 {activeTab === "proximo" && (
                   <NextGameMode matches={matches} riotId={`${gameName}#${tagLine}`} />
+                )}
+
+                {/* ── Aba: War Room ──────────────────────────────────── */}
+                {activeTab === "warroom" && (
+                  <WarRoomDashboard riotId={`${gameName}#${tagLine}`} />
                 )}
               </>
             )}

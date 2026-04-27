@@ -271,4 +271,4 @@ function getSimulatedGame() {
   };
 }
 
-module.exports = { getLiveGame, getSimulatedGame };
+module.exports = { getLiveGame, getSimulatedGame, getChampName };

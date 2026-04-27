@@ -21,6 +21,7 @@ const { calculateGroupRanking } = require("./services/groupBenchmark");
 const { analyzeMatchups }       = require("./services/matchupAnalyzer");
 const { generateDailyQuests }   = require("./services/dailyQuests");
 const { getLiveGame, getSimulatedGame } = require("./services/liveSpectator");
+const { getWarRoom, getSimulatedWarRoom } = require("./services/warRoomEngine");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -1039,6 +1040,55 @@ app.get("/api/live/:riotId", async (req, res) => {
     log("LIVE ERRO", `${s} — ${err.message}`);
     if (s === 404) return res.status(404).json({ error: "Jogador não encontrado." });
     return res.status(s).json({ error: "Erro ao buscar partida ao vivo.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 10: GET /api/war-room/:riotId
+//
+// War Room completo: identidade dos 10 jogadores (Nome#Tag), eventos inferidos
+// por milestones de tempo, e counterplay baseado em composição.
+// Query param ?simulate=true retorna partida simulada (T1 vs GEN).
+//
+// NOTA: Identity Resolver faz até 10 chamadas à account-v1 na PRIMEIRA vez.
+// Após isso, o ROSTER_CACHE evita repetições durante toda a partida (~3h).
+// =============================================================================
+
+app.get("/api/war-room/:riotId", async (req, res) => {
+  const rawId    = req.params.riotId;
+  const simulate = req.query.simulate === "true";
+
+  if (simulate) {
+    log("WAR-ROOM SIM", rawId);
+    return res.json(getSimulatedWarRoom());
+  }
+
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("WAR-ROOM REQUEST", rawId);
+
+  try {
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    const result = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
+    log("WAR-ROOM OK", `${rawId} | gameTime=${result.gameTime} | events=${result.liveEvents.length} | tips=${result.counterStrategies.length}`);
+    return res.json(result);
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("WAR-ROOM ERRO", `${s} — ${err.message}`);
+    if (s === 404) {
+      // Pode ser 404 de jogador não encontrado OU de não estar em jogo
+      if (err.message === "NOT_FOUND") {
+        return res.status(200).json({ isLive: false, reason: "Nenhuma partida ativa." });
+      }
+      return res.status(404).json({ error: "Jogador não encontrado." });
+    }
+    return res.status(s).json({ error: "Erro ao buscar War Room.", detail: err.message });
   }
 });
 

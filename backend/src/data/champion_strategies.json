@@ -1,0 +1,362 @@
+{
+  "Yasuo": {
+    "role": "fighter",
+    "playStyle": "Dive assassin com wind wall e dash — mobile e letal em teamfight.",
+    "generalTips": [
+      "Segure CC duro para quando ele usar E (dash) — fica vulnerável por 0.75s.",
+      "Mantenha minions entre você e ele para bloquear Q (tornado passa por minions).",
+      "Grupos adensados ativam R dele — não se aglomere com aliados em teamfight.",
+      "Compre Randuin's Omen ou Frozen Heart para reduzir dano crítico dele."
+    ],
+    "levelTriggers": {
+      "6": "Ultimate disponível. Precisa de knockup aliado — posicione-se longe de aliados em CC para não dar setup.",
+      "11": "Dano crítico ativo com 2 itens (Immortal Shieldbow + Infinity Edge). Fase mais perigosa — não duela.",
+      "16": "Build quase completa — extremamente letal em teamfight 5v5. Jogue em grupo com 2+ tanques na frente."
+    },
+    "counterItems": ["Randuin's Omen", "Frozen Heart", "Serylda's Grudge"],
+    "hardCounters": ["Malphite", "Wukong", "Renekton", "Pantheon"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Yone": {
+    "role": "fighter",
+    "playStyle": "Bruiser/assassin com soul split e ultimate de longa distância — forte em flancos e engages.",
+    "generalTips": [
+      "Quando ele usar E (soul split), ataque a alma física antes dela retornar — ela tem HP separado.",
+      "Cuidado com R dele à longa distância — pode flanquear de ângulos inesperados em teamfight.",
+      "Compre armadura e resistência mágica — dano dele é misto (físico + mágico).",
+      "Empurre wave antes de 5 min para forçá-lo a ficar in lane e perder rotações."
+    ],
+    "levelTriggers": {
+      "6": "Ultimate disponível para engages de longa distância. Fique longe de alcance ao redor de objetivos.",
+      "11": "Dois itens completos — dano de burst suficiente para one-shot carries com boa sequência.",
+      "16": "Build completa com crit e omnivamp — quase impossível de matar em duelo prolongado. Foque outros alvos."
+    },
+    "counterItems": ["Randuin's Omen", "Frozen Heart", "Mortal Reminder"],
+    "hardCounters": ["Malphite", "Tryndamere", "Renekton", "Quinn"],
+    "powerSpikes": [480, 1200, 2100]
+  },
+  "Zed": {
+    "role": "assassin",
+    "playStyle": "Assassino de AD com shadows para burst e escape — mata carries isolados instantaneamente.",
+    "generalTips": [
+      "Quando ele usar R (Death Mark), use escudos/invulnerabilidade IMEDIATAMENTE — o mark detona após 3s.",
+      "Fique perto de aliados — Zed raramente ataca alvos não isolados.",
+      "Compre Zhonya's Hourglass se for mago/ADC — anula completamente o dano do R.",
+      "Evite ficar na frente da wave sem visão — ele usa shadows para abrir sem risco."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — pode matar qualquer carry isolado com menos de 60% de HP. Compre early Cloth Armor.",
+      "11": "Dois itens de lethality — burst completo para one-shot. Não fique sem escudo disponível.",
+      "16": "Build completa — literalmente impossível de combater sem tenacidade ou Zhonya's. Jogue em grupo."
+    },
+    "counterItems": ["Zhonya's Hourglass", "Stopwatch", "Randuin's Omen"],
+    "hardCounters": ["Malphite", "Kayle", "Lissandra", "Galio"],
+    "powerSpikes": [480, 900, 1200]
+  },
+  "Lee Sin": {
+    "role": "fighter",
+    "playStyle": "Jungler de early game com mobilidade extrema — domina pre-6 e invades.",
+    "generalTips": [
+      "Evite ficar agrupado — Insec (Q + kick) pode jogar um aliado na equipe inimiga.",
+      "Warde trinket ou controle wards nos bushes do rio — ele usa wards para mobilidade (W em ward).",
+      "Force duelos após nível 9 quando Q/W/E estão maxados mas ele cai em escalonamento.",
+      "Compre Thornmail se ele for fed — devolve dano físico e aplica Grievous Wounds."
+    ],
+    "levelTriggers": {
+      "6": "R disponível para Insec. Cuidado ao ser carrinho no drag/baron — pode kickar carry no time inimigo.",
+      "11": "Queda de poder — early game perdeu força. Jogue agressivo contra ele após este ponto.",
+      "16": "Extremamente dependente de farm/kills anteriores. Se não tiver vantagem, bem menos perigoso."
+    },
+    "counterItems": ["Thornmail", "Frozen Heart", "Gargoyle Stoneplate"],
+    "hardCounters": ["Warwick", "Rammus", "Amumu", "Trundle"],
+    "powerSpikes": [180, 480, 600]
+  },
+  "Jinx": {
+    "role": "marksman",
+    "playStyle": "ADC de longa distância com reset de kills — devastadora em teamfights abertas.",
+    "generalTips": [
+      "Ela tem zero mobilidade — pincete-a com engage antes de ela ganhar kills/resets.",
+      "Dash nela quando estiver no modo Minigun (Q) — não tem escape, apenas slow.",
+      "Cuidado com W (slow) a longa distância e E (armadilhas) nos bushes.",
+      "Dive agressivo pre-6 antes de ela ter Kraken Slayer — ADC extremamente fraca no early game."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — global que persegue alvos com pouco HP. Não recue com menos de 20% HP sem escudo.",
+      "11": "Kraken + Runaan's — AoE massivo em teamfight. Não deixe ela atacar livrement por mais de 3s.",
+      "16": "Build completa — rocket AoE com range enorme. Engage nela antes de teamfight iniciar."
+    },
+    "counterItems": ["Frozen Heart", "Randuin's Omen", "Mortal Reminder"],
+    "hardCounters": ["Draven", "Caitlyn", "Samira", "Lucian"],
+    "powerSpikes": [900, 1500, 2400]
+  },
+  "Thresh": {
+    "role": "support",
+    "playStyle": "Support de engage/pick com hook e lanterna — controle de teamfight e proteção de aliados.",
+    "generalTips": [
+      "Fique atrás de minions — Q (Death Sentence) não atravessa minions; use-os como escudo.",
+      "Cuidado com box (E) quando recuar — ele coloca nos caminhos de fuga para slow.",
+      "Destrua a lanterna (W) imediatamente — impede aliados de escaparem.",
+      "Compre Mikael's Blessing ou QSS para remover o hook se for o alvo principal."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — box fecha rotas de escape. Não recue em linha reta — contorne a caixa.",
+      "11": "Full build de support — muito tanque com muita utilidade. Foque o carry atrás dele.",
+      "16": "Escalonamento máximo de almas — cada soul dá armor. Compre %pen para furar tank."
+    },
+    "counterItems": ["Mikael's Blessing", "Morellonomicon", "Serpent's Fang"],
+    "hardCounters": ["Blitzcrank", "Leona", "Morgana", "Zilean"],
+    "powerSpikes": [120, 480, 1200]
+  },
+  "Ahri": {
+    "role": "mage",
+    "playStyle": "Maga/assassina de mid lane com charme e triple dash — burst em alvos isolados.",
+    "generalTips": [
+      "Quando ela errar Q (Orb of Deception), puna agressivamente — 10s de cooldown no early.",
+      "Fique atrás de minions para dificultar charme (E) — Charm tem hitbox pequena.",
+      "Cuidado com R (Spirit Rush) — triple dash torna perseguição ou fuga difícil por 10s.",
+      "Compre Banshee's Veil — escudo impede o charme e pode invalidar seu combo."
+    ],
+    "levelTriggers": {
+      "6": "R disponível para mobilidade extrema — pode entrar, burstar e sair sem risco.",
+      "11": "Dois itens AP — one-shot em carries sem MR. Compre Banshee's Veil urgente.",
+      "16": "Build completa — full AP com CDR. Ahri pode deletar em menos de 1s de combo."
+    },
+    "counterItems": ["Banshee's Veil", "Zhonya's Hourglass", "Force of Nature"],
+    "hardCounters": ["Zed", "Talon", "Fizz", "Kassadin"],
+    "powerSpikes": [480, 900, 1500]
+  },
+  "Lux": {
+    "role": "mage",
+    "playStyle": "Maga de longo alcance com snare duplo e laser — forte em poke e burst.",
+    "generalTips": [
+      "Fique fora do alcance do Q — snare duplo viaja em linha reta; desvie lateralmente.",
+      "Destrua escudo passivo dela (Prismatic Barrier) com um auto-attack antes do combo.",
+      "Após usar Q, ela combinará E + R imediatamente — use flash ou dash durante o casting de R.",
+      "Empurre wave para forçá-la a ficar in lane — Lux é weak ao pressure e roams."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — burst completo com Q + E + R. Não fique com menos de 60% HP em lane.",
+      "11": "CDR alto com dois itens — R a cada 15s. Não agrupe em linha para evitar double snare.",
+      "16": "Full build — literalmente mata carries em um combo. Tenha escudo/heal pronto."
+    },
+    "counterItems": ["Banshee's Veil", "Mercury's Treads", "Zhonya's Hourglass"],
+    "hardCounters": ["Zed", "Talon", "Yasuo", "Kassadin"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Nautilus": {
+    "role": "tank",
+    "playStyle": "Tank de engage com hook, slow, knockup e ultimate — CC em cadeia sem fim.",
+    "generalTips": [
+      "Evite ficar na frente — Q (Dredge Line) hook viaja rápido; fique atrás de aliados.",
+      "Após hook, ele vai combinar W (escudo) + E (AoE slow) + R (CC single target) — jogue Tenacidade.",
+      "Compre Mercury's Treads — reduz duração do CC enorme que ele aplica.",
+      "Fique nos bushes mas ward-os — ele usa brushes para aproximar antes do hook."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — knockup direcionado em qualquer carry na teamfight. Fique atrás de 2+ aliados.",
+      "11": "Full tank build — quase imortal com 3 itens defensivos. Não o foque — mate os carries.",
+      "16": "Escalonamento máximo — CDR e HP altíssimo. Engage dele inicia qualquer teamfight."
+    },
+    "counterItems": ["Mercury's Treads", "Serpent's Fang", "Morellonomicon"],
+    "hardCounters": ["Morgana", "Janna", "Sivir", "Quinn"],
+    "powerSpikes": [120, 480, 1200]
+  },
+  "Caitlyn": {
+    "role": "marksman",
+    "playStyle": "ADC de longest range com armadilhas e headshots — domina lane e sniping.",
+    "generalTips": [
+      "Não pise nas armadilhas (E) — ela acumulou headshots ao redor delas para burst.",
+      "Fique fora do range do Q (Piltover Peacemaker) — 650+ units de range.",
+      "Use cover/bushes estrategicamente — ela não pode atirar headshots de bushes.",
+      "Engage pré-6 — antes de R ela tem zero escape além do net (E ativa)."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — snipe de longa distância pode executar alvos; use escudo/ally body para bloquear.",
+      "11": "Galeforce + Kraken — burst e mobilidade. Mais agressiva com 3 itens.",
+      "16": "Build completa com Infinity Edge — headshots one-shot. Não fique com menos de 50% HP."
+    },
+    "counterItems": ["Frozen Heart", "Randuin's Omen", "Mortal Reminder"],
+    "hardCounters": ["Draven", "Lucian", "Jinx", "Sivir"],
+    "powerSpikes": [480, 1200, 2100]
+  },
+  "Vi": {
+    "role": "fighter",
+    "playStyle": "Jungler de engage com vault breaker e ultimate de lockdown — mata carries isolados.",
+    "generalTips": [
+      "Fique atrás de aliados — Q (Vault Breaker) é projectile que acerta o primeiro inimigo.",
+      "Quando ela usar R em um aliado, coloque seu body para interceptar — R é bloqueável.",
+      "Compre Zhonya's se for o alvo primário — anula o R dela por 2.5s.",
+      "Cuidado com Q carregado — Vi pode carregar Q por até 1.25s para distância extra."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — lockdown garantido em qualquer target. ADC/suporte em risco constante.",
+      "11": "Trinity Force ou Sundered Sky — dano explosivo com Q + R combo. Tenha Flash disponível.",
+      "16": "Build completa — quase impossível de kitar com Galeforce + Sundered. Jogue em grupo."
+    },
+    "counterItems": ["Zhonya's Hourglass", "Randuin's Omen", "Gargoyle Stoneplate"],
+    "hardCounters": ["Jax", "Rammus", "Malphite", "Poppy"],
+    "powerSpikes": [480, 900, 1500]
+  },
+  "Darius": {
+    "role": "fighter",
+    "playStyle": "Bruiser de top lane com bleed e reset de ultimate — destroça em duelos prolongados.",
+    "generalTips": [
+      "Nunca duel com 5 stacks de Hemorrhage (sangramento) — dano por segundo é letal.",
+      "Fique fora do alcance do E (Apprehend) — pull + passive stack é combo devastador.",
+      "Ataque da parte de fora do Q (Decimate) — a lâmina cura ele; o cabo não.",
+      "Compre Grievous Wounds rapidamente — passivo e Q curam muito; corte a cura."
+    ],
+    "levelTriggers": {
+      "6": "R disponível com reset — pode limpar times inteiros com Noxian Guillotine resets.",
+      "11": "Duas peças de bruiser — quase impossível de matar em duelo. Não 1v1 em hipótese alguma.",
+      "16": "Build completa — five stacks + R é execução garantida. Jogue à distância e kite."
+    },
+    "counterItems": ["Mortal Reminder", "Bramble Vest", "Serpent's Fang"],
+    "hardCounters": ["Vayne", "Quinn", "Kayle", "Kennen"],
+    "powerSpikes": [300, 480, 1200]
+  },
+  "Vayne": {
+    "role": "marksman",
+    "playStyle": "ADC de late game com verdadeiro dano percentual — melhor contra tanks.",
+    "generalTips": [
+      "Não deixe ela te pinar no muro com condemn (E) — se condemnado+stunado, é morte certa.",
+      "Foque-a no early game — Vayne é extremamente fraca antes de 2 itens.",
+      "Compre health/armor — true damage percentual escala com seu HP máximo.",
+      "Mantenha visão nos bushes — tumble (Q) a torna invisível durante a animação."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — invisibilidade por 1s em cada tumble. Muito mais difícil de mirar.",
+      "11": "Guinsoo's Rageblade — procs de Silver Bolts a cada 2 autos. Full power em duelo.",
+      "16": "Build completa — destrói qualquer tanque em 3-4 autos. Engage nela antes de teamfight."
+    },
+    "counterItems": ["Frozen Heart", "Randuin's Omen", "Mortal Reminder"],
+    "hardCounters": ["Caitlyn", "Draven", "Miss Fortune", "Jinx"],
+    "powerSpikes": [900, 1500, 2400]
+  },
+  "Jhin": {
+    "role": "marksman",
+    "playStyle": "ADC de high burst com 4 balas e snipe — letal em picks e poke.",
+    "generalTips": [
+      "Conte as balas — 4ª bala é a letal; após 4 tiros ele recarrega por 2.5s. Engage nesse momento.",
+      "Evite ficar snared — W (Deadly Flourish) aplica root se o alvo foi previamente marcado.",
+      "Cuidado com curtain call (R) — snipe de range extremo com 4 tiros de alta velocidade.",
+      "Fique fora da linha de R — tiros viajam em linha reta e são visíveis mas rápidos."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — snipe global após setup de W. Não recue em linha reta após teamfight.",
+      "11": "Dois itens de AD/crit — 4ª bala one-shots squishies. Compre early HP para sobreviver.",
+      "16": "Build completa — dano absurdo com Galeforce + Infinity Edge. Engage before he positions."
+    },
+    "counterItems": ["Randuin's Omen", "Frozen Heart", "Mortal Reminder"],
+    "hardCounters": ["Lucian", "Draven", "Caitlyn", "Sivir"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Kayn": {
+    "role": "assassin",
+    "playStyle": "Jungler transformável — forma Rhaast (bruiser) ou Shadow Assassin dependendo das kills.",
+    "generalTips": [
+      "Ele atravessa paredes com E (Shadow Step) — ward entradas alternativas nos bushes.",
+      "Identifique a forma dele: Rhaast (vermelho) = bruiser, duel com CC; Shadow Assassin (azul) = burst, fuja em grupo.",
+      "Não duelle Shadow Assassin em 1v1 — burst é equivalente a Zed. Fique em grupo.",
+      "Forme Rhaast é excelente contra time sem CC pesado — compre Thornmail para contra."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — pode entrar no corpo de um aliado e surgir após 2.5s. Use flash durante.",
+      "11": "Transformação completa após ~15-20 min de jogo. A forma define a estratégia inimiga.",
+      "16": "Full bruiser (Rhaast) ou full assassin (SA) — adapte build ao que foi evoluído."
+    },
+    "counterItems": ["Randuin's Omen", "Zhonya's Hourglass", "Mortal Reminder"],
+    "hardCounters": ["Warwick", "Rammus", "Lee Sin", "Hecarim"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Sylas": {
+    "role": "mage",
+    "playStyle": "Mago/assassino que rouba ultimates inimigas — extremamente versátil e impredizível.",
+    "generalTips": [
+      "Sylas rouba R de todos os inimigos — não use ultimate antes de uma teamfight para evitar que ele a use.",
+      "Cuidado com Chain Lash (Q) + Abscond/Abduct (E) combo — burst rápido em range médio.",
+      "Compre Zhonya's se for o alvo — pode anular o combo completo dele.",
+      "Avoid laning versus Sylas com menos de 50% HP — executada (R stolen Garen, Darius, etc)."
+    ],
+    "levelTriggers": {
+      "6": "Pode roubar R do jogador monitorado — identifique qual ultimate ele pegou antes de teamfight.",
+      "11": "Dois itens AP — burst pesado com E + Q + W combo. Não se aproxime sem CC ready.",
+      "16": "Full AP build — combinações ilimitadas com Rs roubadas de 5 inimigos."
+    },
+    "counterItems": ["Zhonya's Hourglass", "Banshee's Veil", "Morellonomicon"],
+    "hardCounters": ["Kassadin", "Fizz", "Zed", "Talon"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Blitzcrank": {
+    "role": "support",
+    "playStyle": "Support de pick com rocket grab e knockup — termina qualquer encontro com um hook.",
+    "generalTips": [
+      "NUNCA fique na linha de visão direta — Q (Rocket Grab) viaja em linha reta e é instantâneo.",
+      "Fique atrás de minions na lane — hook não atravessa minions.",
+      "Após hook, ele vai E (knockup) + R (silence AoE) — use QSS ou Mikael's para escaping.",
+      "Cuidado com mana bar — passiva (Mana Barrier) dá escudo quando está com pouca mana."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — AoE silence que combo com hook. Não agrupe na lane bot.",
+      "11": "Full support tank — quase impossível de matar. Foque o ADC atrás dele.",
+      "16": "Hook + knockup + silence a cada 8-10s. Ward bushes e lateral do rio constantemente."
+    },
+    "counterItems": ["Mikael's Blessing", "Mercury's Treads", "Serpent's Fang"],
+    "hardCounters": ["Thresh", "Morgana", "Janna", "Lulu"],
+    "powerSpikes": [120, 480, 900]
+  },
+  "Fizz": {
+    "role": "assassin",
+    "playStyle": "Assassino de mid lane com pole vault e shark — burst em carries com mobilidade extrema.",
+    "generalTips": [
+      "Quando ele usar E (Playful/Trickster), NÃO gaste CC ou burst — é completamente intangível por 0.75s.",
+      "Compre Zhonya's Hourglass como carry — pode segurar invulnerabilidade durante o combo.",
+      "Fique longe das paredes — ele usa E para atravessar e abrir ângulos inesperados.",
+      "Ataque-o após E terminar — fica vulnerável por ~0.5s ao pousar."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — shark knockup que marca para todo o time. Compre early MR se for mago.",
+      "11": "Dois itens AP — one-shot em carries sem MR. Tenha Zhonya's disponível pós-nível 11.",
+      "16": "Full AP build — R + combo mata qualquer squishy em <1s. Jogue em grupo."
+    },
+    "counterItems": ["Zhonya's Hourglass", "Banshee's Veil", "Morellonomicon"],
+    "hardCounters": ["Galio", "Lissandra", "Malphite", "Diana"],
+    "powerSpikes": [480, 900, 1500]
+  },
+  "Katarina": {
+    "role": "assassin",
+    "playStyle": "Assassina de reset em cadeia — devastadora em teamfights contra times sem CC.",
+    "generalTips": [
+      "Um único CC interrompe toda a ult (Death Lotus) — coordene com time para segurá-lo.",
+      "Destrua/empurre daggers do chão — ela usa Q/E nas daggers para resets e mobilidade.",
+      "Compre Zhonya's como carry — anula completamente a Death Lotus.",
+      "Não agrupe em teamfight — AoE de daggers e ult acerta múltiplos alvos agrupados."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — Death Lotus canaliza e aplica Grievous Wounds. Interrompa com CC.",
+      "11": "Dois itens AP — sequência suficiente para one-shot sem ult. Cuidado com roams.",
+      "16": "Full build com Riftmaker/Hextech Rocketbelt — mobilidade ilimitada e dano massivo."
+    },
+    "counterItems": ["Zhonya's Hourglass", "Banshee's Veil", "Morellonomicon"],
+    "hardCounters": ["Cassiopeia", "Galio", "Diana", "Malzahar"],
+    "powerSpikes": [480, 1200, 1800]
+  },
+  "Garen": {
+    "role": "fighter",
+    "playStyle": "Bruiser de top lane silenciador com julgamento giratório e execução — simples mas eficaz.",
+    "generalTips": [
+      "Não use habilidades enquanto ele está com Q ativo — silence dura 1.5s e você desperdiça o cooldown.",
+      "Kite-o — Garen sem gap-closer é facilmente kitado por carries a distância.",
+      "Compre Grievous Wounds cedo — regeneração passiva dele é extremamente forte.",
+      "Fique com mais de 50% HP — execute R (Demacian Justice) é mais dano quanto menos HP você tem."
+    ],
+    "levelTriggers": {
+      "6": "R disponível — executa carries com menos de 30-40% HP. Não recue sozinho com pouco HP.",
+      "11": "Stridebreaker ou Trinity — muito dano em E (julgamento). Não duelle isolado.",
+      "16": "Full bruiser build — quase impossível de matar em duelo direto. Kite com autos."
+    },
+    "counterItems": ["Mortal Reminder", "Bramble Vest", "Liandry's Anguish"],
+    "hardCounters": ["Vayne", "Quinn", "Kayle", "Kennen"],
+    "powerSpikes": [300, 480, 1200]
+  }
+}
