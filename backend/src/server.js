@@ -21,7 +21,8 @@ const { calculateGroupRanking } = require("./services/groupBenchmark");
 const { analyzeMatchups }       = require("./services/matchupAnalyzer");
 const { generateDailyQuests }   = require("./services/dailyQuests");
 const { getLiveGame, getSimulatedGame } = require("./services/liveSpectator");
-const { getWarRoom, getSimulatedWarRoom } = require("./services/warRoomEngine");
+const { getWarRoom, getSimulatedWarRoom }       = require("./services/warRoomEngine");
+const { sendTestAlert, dispatchWarRoomAlerts }  = require("./services/discordAlerter");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -1089,6 +1090,91 @@ app.get("/api/war-room/:riotId", async (req, res) => {
       return res.status(404).json({ error: "Jogador não encontrado." });
     }
     return res.status(s).json({ error: "Erro ao buscar War Room.", detail: err.message });
+  }
+});
+
+// =============================================================================
+// ROTA 11: POST /api/discord/test
+//
+// Valida uma URL de webhook e envia uma mensagem de teste com embed rico.
+// Body: { webhookUrl: "https://discord.com/api/webhooks/..." }
+// =============================================================================
+
+app.post("/api/discord/test", async (req, res) => {
+  const { webhookUrl } = req.body ?? {};
+
+  if (!webhookUrl || !String(webhookUrl).startsWith("https://discord.com/api/webhooks/")) {
+    return res.status(400).json({
+      error: "URL de webhook inválida. Deve começar com https://discord.com/api/webhooks/",
+    });
+  }
+
+  log("DISCORD TEST", webhookUrl.slice(0, 60) + "…");
+
+  try {
+    await sendTestAlert(webhookUrl);
+    log("DISCORD TEST OK", "alerta de teste enviado");
+    return res.json({ success: true, message: "Alerta de teste enviado! Verifique o canal do Discord." });
+  } catch (err) {
+    log("DISCORD TEST ERRO", err.message);
+    return res.status(400).json({
+      error: "Falha ao enviar para o Discord. Verifique se a URL do webhook está correta.",
+      detail: err.message,
+    });
+  }
+});
+
+// =============================================================================
+// ROTA 12: POST /api/discord/trigger/:riotId
+//
+// Busca dados da partida ao vivo e despacha alertas para o Discord.
+// Usa GAME_CACHE interno (170s) — não duplica chamadas Spectator quando
+// o frontend já buscou /api/war-room recentemente.
+//
+// Body: {
+//   webhookUrl: "https://discord.com/api/webhooks/...",
+//   prefs: { powerSpike, levelAlerts, objectives, counterplay }
+// }
+// =============================================================================
+
+app.post("/api/discord/trigger/:riotId", async (req, res) => {
+  const rawId = req.params.riotId;
+  const { webhookUrl, prefs } = req.body ?? {};
+
+  if (!rawId.includes("#"))
+    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+
+  if (!webhookUrl || !String(webhookUrl).startsWith("https://discord.com/api/webhooks/")) {
+    return res.status(400).json({ error: "webhookUrl inválida." });
+  }
+
+  const [gameName, tagLine] = rawId.split("#");
+  log("DISCORD TRIGGER", rawId);
+
+  try {
+    const { puuid } = await riotGet(
+      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+    );
+
+    let warRoomData;
+    try {
+      warRoomData = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
+    } catch (err) {
+      if (err.status === 404) {
+        return res.json({ dispatched: 0, reason: "Jogador não está em partida." });
+      }
+      throw err;
+    }
+
+    const dispatched = dispatchWarRoomAlerts(warRoomData, webhookUrl, prefs, rawId);
+
+    log("DISCORD TRIGGER OK", `${rawId} | dispatched=${dispatched} alertas`);
+    return res.json({ dispatched, gameTime: warRoomData.gameTime });
+
+  } catch (err) {
+    const s = err.status ?? 500;
+    log("DISCORD TRIGGER ERRO", `${s} — ${err.message}`);
+    return res.status(s).json({ error: "Erro ao disparar alertas Discord.", detail: err.message });
   }
 });
 

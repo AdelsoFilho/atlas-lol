@@ -3,7 +3,7 @@ import axios from "axios";
 import {
   TrendingUp, Coins, Loader2, AlertCircle, Shield,
   Crosshair, CheckSquare, Square, Activity, AlertTriangle,
-  Swords, Repeat2, Trophy, Target, Gamepad2, BarChart3, Radio,
+  Swords, Repeat2, Trophy, Target, Gamepad2, BarChart3, Radio, Bell,
 } from "lucide-react";
 import MatchList        from "./components/MatchList";
 import SearchBar        from "./components/SearchBar";
@@ -15,6 +15,7 @@ import NextGameMode     from "./components/NextGameMode";
 import ShareCard        from "./components/ShareCard";
 import LiveMatchOverlay  from "./components/LiveMatchOverlay";
 import WarRoomDashboard  from "./components/WarRoomDashboard";
+import DiscordSettings   from "./components/DiscordSettings";
 
 // ─── Helpers de cor ──────────────────────────────────────────────────────────
 
@@ -69,12 +70,13 @@ function ActionItem({ text, checked, onToggle }) {
 // ─── App principal ────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [loading,    setLoading]    = useState(false);
-  const [data,       setData]       = useState(null);
-  const [puuid,      setPuuid]      = useState(null);
-  const [error,      setError]      = useState("");
-  const [checked,    setChecked]    = useState({});
-  const [activeTab,  setActiveTab]  = useState("desempenho");
+  const [loading,       setLoading]       = useState(false);
+  const [data,          setData]          = useState(null);
+  const [puuid,         setPuuid]         = useState(null);
+  const [error,         setError]         = useState("");
+  const [checked,       setChecked]       = useState({});
+  const [activeTab,     setActiveTab]     = useState("desempenho");
+  const [discordOpen,   setDiscordOpen]   = useState(false);
 
   // Referência para a função addToHistory do SearchBar (injetada via onNewData)
   const addToHistoryRef = useRef(null);
@@ -141,8 +143,26 @@ export default function App() {
           <span className="ml-auto text-xs text-gray-700 hidden sm:block">
             {matches.length > 0 ? `${matches.length} partidas · análise detalhada` : "análise granular por partida"}
           </span>
+          {/* Discord Command Center trigger */}
+          <button
+            onClick={() => setDiscordOpen(true)}
+            title="Discord Command Center"
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-400
+                       border border-white/10 hover:border-indigo-600/40 bg-surface-800
+                       hover:bg-indigo-900/20 px-2.5 py-1.5 rounded-full transition-all ml-2"
+          >
+            <Bell size={12} />
+            <span className="hidden sm:inline">Discord</span>
+          </button>
         </div>
       </header>
+
+      {/* ── Discord Settings Modal (sempre montado — polling independente) ─ */}
+      <DiscordSettings
+        riotId={data ? `${data.gameName}#${data.tagLine}` : null}
+        isOpen={discordOpen}
+        onClose={() => setDiscordOpen(false)}
+      />
 
       <main className="max-w-4xl mx-auto px-4 py-10 space-y-8">
 

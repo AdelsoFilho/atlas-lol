@@ -24,6 +24,13 @@ const ROSTER_TTL   = 3 * 60 * 60 * 1000; // 3h — duração máxima de uma part
 // puuid → { prevGameSec, currentGameSec, events }
 const DELTA_CACHE = new Map();
 
+// ── Cache da resposta bruta do Spectator API ──────────────────────────────────
+// Evita chamadas duplicadas quando UI (180s) e Discord trigger (180s) polls
+// ocorrem próximos no tempo.
+// puuid → { data, ts }
+const GAME_CACHE     = new Map();
+const GAME_CACHE_TTL = 170_000; // 170s (ligeiramente menor que o poll interval)
+
 // ── Estimativa de nível por tempo de jogo (lane avg) ─────────────────────────
 const LEVEL_CURVE = [
   [0, 1], [65, 2], [155, 3], [270, 4], [390, 5], [480, 6],
@@ -229,10 +236,17 @@ function formatParticipants(participants, roster, gameTimeSec) {
 
 // ── Função principal ───────────────────────────────────────────────────────────
 async function getWarRoom(puuid, platform, riotGetFn, regionAccount) {
-  // 1. Busca partida ao vivo
-  const game = await riotGetFn(
-    `https://${platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${puuid}`
-  );
+  // 1. Busca partida ao vivo (com cache de 170s para evitar calls duplicadas)
+  let game;
+  const gameHit = GAME_CACHE.get(puuid);
+  if (gameHit && Date.now() - gameHit.ts < GAME_CACHE_TTL) {
+    game = gameHit.data;
+  } else {
+    game = await riotGetFn(
+      `https://${platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${puuid}`
+    );
+    GAME_CACHE.set(puuid, { data: game, ts: Date.now() });
+  }
 
   const gameId      = String(game.gameId);
   const gameTimeSec = game.gameLength ?? 0;
