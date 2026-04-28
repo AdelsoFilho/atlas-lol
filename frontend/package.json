@@ -1,6 +1,6 @@
 {
   "name": "atlas-lol-client",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
+    "framer-motion": "^11.0.0",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
     "recharts": "^2.15.4"
   },
   "devDependencies": {

@@ -20,10 +20,7 @@ const {
 const { calculateGroupRanking } = require("./services/groupBenchmark");
 const { analyzeMatchups }       = require("./services/matchupAnalyzer");
 const { generateDailyQuests }   = require("./services/dailyQuests");
-const { getLiveGame, getSimulatedGame } = require("./services/liveSpectator");
-const { getWarRoom, getSimulatedWarRoom }       = require("./services/warRoomEngine");
-const { sendTestAlert, dispatchWarRoomAlerts }  = require("./services/discordAlerter");
-const { updateFromHeaders, getDynamicInterval, getRateLimitStatus } = require("./services/smartPoller");
+const championStrategies = require("./data/champion_strategies.json");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -42,10 +39,8 @@ const MATCH_CACHE    = new Map(); // matchId  → { data, ts }
 const TIMELINE_CACHE = new Map(); // matchId  → { data, ts }
 const PLAYER_CACHE   = new Map(); // puuid    → { data, ts }
 const AI_CACHE       = new Map(); // matchId:puuid → { data, ts }  (TTL 1h — respostas custam quota)
-const PUUID_CACHE    = new Map(); // "gameName#tagLine" → { puuid, ts }
 const CACHE_TTL      = 15 * 60 * 1000;          // 15 minutos
 const AI_CACHE_TTL   = 60 * 60 * 1000;          // 1 hora
-const PUUID_TTL      = 15 * 60 * 1000;          // 15 minutos (PUUID não muda)
 
 function cacheGet(store, key) {
   const entry = store.get(key);
@@ -55,24 +50,6 @@ function cacheGet(store, key) {
 }
 function cacheSet(store, key, data) { store.set(key, { data, ts: Date.now() }); }
 
-// Resolve PUUID com cache de 15 min (evita chamadas redundantes à account-v1 durante o polling)
-async function resolvePuuid(gameName, tagLine) {
-  const riotKey = `${gameName.toLowerCase()}#${tagLine.toLowerCase()}`;
-  const hit     = PUUID_CACHE.get(riotKey);
-  if (hit && Date.now() - hit.ts < PUUID_TTL) return hit.puuid;
-  const { puuid } = await riotGet(
-    `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
-  );
-  PUUID_CACHE.set(riotKey, { puuid, ts: Date.now() });
-  return puuid;
-}
-
-// Converte "MM:SS" → segundos (para getDynamicInterval em rotas sem gameLengthSec)
-function parseGameTimeSec(gameTime) {
-  if (!gameTime || typeof gameTime !== "string") return 0;
-  const [m, s] = gameTime.split(":").map(Number);
-  return (isNaN(m) ? 0 : m) * 60 + (isNaN(s) ? 0 : s);
-}
 
 // =============================================================================
 // UTILITÁRIOS
@@ -90,7 +67,6 @@ async function riotGet(url, params = {}) {
         params,
         timeout: 12_000,
       });
-      updateFromHeaders(res.headers); // alimenta o smartPoller com os headers de rate limit
       return res.data;
     } catch (err) {
       const status = err.response?.status;
@@ -1021,180 +997,40 @@ app.get("/api/quests/:riotId", async (req, res) => {
 });
 
 // =============================================================================
-// ROTA 9: GET /api/live/:riotId
+// ROTA 9: POST /api/draft
 //
-// Retorna dados da partida ao vivo + Momentum Score.
-// Cache inteligente: 180s para partida ativa, 60s para "não está em jogo".
-// Query param ?simulate=true retorna dados simulados (para testes de UI).
-// =============================================================================
-
-app.get("/api/live/:riotId", async (req, res) => {
-  const rawId    = req.params.riotId;
-  const simulate = req.query.simulate === "true";
-
-  if (simulate) {
-    log("LIVE SIM", rawId);
-    return res.json(getSimulatedGame());
-  }
-
-  if (!rawId.includes("#"))
-    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
-
-  const [gameName, tagLine] = rawId.split("#");
-  log("LIVE REQUEST", rawId);
-
-  try {
-    const puuid = await resolvePuuid(gameName, tagLine);
-
-    // Passa histórico do jogador se disponível (enriquece o Momentum Score)
-    const playerData    = cacheGet(PLAYER_CACHE, puuid);
-    const playerHistory = playerData ? {
-      winrate: playerData.stats?.winrate,
-      kda:     playerData.stats?.kda,
-    } : null;
-
-    const result       = await getLiveGame(puuid, REGION_PLATFORM, riotGet, playerHistory);
-    const nextUpdateIn = Math.round(getDynamicInterval(result.gameLengthSec ?? 0) / 1000);
-    log("LIVE OK", `${rawId} | isLive=${result.isLive} | fromCache=${result.fromCache} | score=${result.momentumScore ?? "N/A"} | nextPoll=${nextUpdateIn}s`);
-    return res.json({ ...result, nextUpdateIn });
-
-  } catch (err) {
-    const s = err.status ?? 500;
-    log("LIVE ERRO", `${s} — ${err.message}`);
-    if (s === 404) return res.status(404).json({ error: "Jogador não encontrado." });
-    return res.status(s).json({ error: "Erro ao buscar partida ao vivo.", detail: err.message });
-  }
-});
-
-// =============================================================================
-// ROTA 10: GET /api/war-room/:riotId
+// Analisa composição inimiga e retorna estratégias de counter por campeão.
+// Lê diretamente do champion_strategies.json — sem chamadas à Riot API.
 //
-// War Room completo: identidade dos 10 jogadores (Nome#Tag), eventos inferidos
-// por milestones de tempo, e counterplay baseado em composição.
-// Query param ?simulate=true retorna partida simulada (T1 vs GEN).
-//
-// NOTA: Identity Resolver faz até 10 chamadas à account-v1 na PRIMEIRA vez.
-// Após isso, o ROSTER_CACHE evita repetições durante toda a partida (~3h).
+// Body: { enemies: ["Yasuo", "Zed", "Thresh"] }
 // =============================================================================
 
-app.get("/api/war-room/:riotId", async (req, res) => {
-  const rawId    = req.params.riotId;
-  const simulate = req.query.simulate === "true";
+app.post("/api/draft", (req, res) => {
+  const { enemies } = req.body ?? {};
 
-  if (simulate) {
-    log("WAR-ROOM SIM", rawId);
-    return res.json(getSimulatedWarRoom());
+  if (!Array.isArray(enemies) || enemies.length === 0)
+    return res.status(400).json({ error: "enemies deve ser um array não-vazio." });
+
+  log("DRAFT REQUEST", enemies.join(", "));
+
+  const strategies = [];
+  const unknown    = [];
+
+  for (const champ of enemies) {
+    const data = championStrategies[champ];
+    if (data) strategies.push({ champion: champ, data });
+    else       unknown.push(champ);
   }
 
-  if (!rawId.includes("#"))
-    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
+  const roles   = strategies.map(s => s.data.role);
+  const summary = strategies.length > 0
+    ? `Composição inimiga com ${strategies.length} campeão(s) analisado(s): ${
+        [...new Set(roles)].join(", ")
+      }. Priorize os counter-picks listados e compre itens defensivos correspondentes.`
+    : null;
 
-  const [gameName, tagLine] = rawId.split("#");
-  log("WAR-ROOM REQUEST", rawId);
-
-  try {
-    const puuid = await resolvePuuid(gameName, tagLine);
-
-    const result       = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
-    const nextUpdateIn = Math.round(getDynamicInterval(parseGameTimeSec(result.gameTime)) / 1000);
-    log("WAR-ROOM OK", `${rawId} | gameTime=${result.gameTime} | events=${result.liveEvents.length} | tips=${result.counterStrategies.length} | nextPoll=${nextUpdateIn}s`);
-    return res.json({ ...result, nextUpdateIn });
-
-  } catch (err) {
-    const s = err.status ?? 500;
-    log("WAR-ROOM ERRO", `${s} — ${err.message}`);
-    if (s === 404) {
-      // Pode ser 404 de jogador não encontrado OU de não estar em jogo
-      if (err.message === "NOT_FOUND") {
-        return res.status(200).json({ isLive: false, reason: "Nenhuma partida ativa." });
-      }
-      return res.status(404).json({ error: "Jogador não encontrado." });
-    }
-    return res.status(s).json({ error: "Erro ao buscar War Room.", detail: err.message });
-  }
-});
-
-// =============================================================================
-// ROTA 11: POST /api/discord/test
-//
-// Valida uma URL de webhook e envia uma mensagem de teste com embed rico.
-// Body: { webhookUrl: "https://discord.com/api/webhooks/..." }
-// =============================================================================
-
-app.post("/api/discord/test", async (req, res) => {
-  const { webhookUrl } = req.body ?? {};
-
-  if (!webhookUrl || !String(webhookUrl).match(/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//)) {
-    return res.status(400).json({
-      error: "URL de webhook inválida. Use a URL gerada pelo Discord (discord.com ou discordapp.com).",
-    });
-  }
-
-  log("DISCORD TEST", webhookUrl.slice(0, 60) + "…");
-
-  try {
-    await sendTestAlert(webhookUrl);
-    log("DISCORD TEST OK", "alerta de teste enviado");
-    return res.json({ success: true, message: "Alerta de teste enviado! Verifique o canal do Discord." });
-  } catch (err) {
-    log("DISCORD TEST ERRO", err.message);
-    return res.status(400).json({
-      error: "Falha ao enviar para o Discord. Verifique se a URL do webhook está correta.",
-      detail: err.message,
-    });
-  }
-});
-
-// =============================================================================
-// ROTA 12: POST /api/discord/trigger/:riotId
-//
-// Busca dados da partida ao vivo e despacha alertas para o Discord.
-// Usa GAME_CACHE interno (170s) — não duplica chamadas Spectator quando
-// o frontend já buscou /api/war-room recentemente.
-//
-// Body: {
-//   webhookUrl: "https://discord.com/api/webhooks/...",
-//   prefs: { powerSpike, levelAlerts, objectives, counterplay }
-// }
-// =============================================================================
-
-app.post("/api/discord/trigger/:riotId", async (req, res) => {
-  const rawId = req.params.riotId;
-  const { webhookUrl, prefs } = req.body ?? {};
-
-  if (!rawId.includes("#"))
-    return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
-
-  if (!webhookUrl || !String(webhookUrl).match(/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//)) {
-    return res.status(400).json({ error: "webhookUrl inválida." });
-  }
-
-  const [gameName, tagLine] = rawId.split("#");
-  log("DISCORD TRIGGER", rawId);
-
-  try {
-    const puuid = await resolvePuuid(gameName, tagLine);
-
-    let warRoomData;
-    try {
-      warRoomData = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
-    } catch (err) {
-      if (err.status === 404) {
-        return res.json({ dispatched: 0, reason: "Jogador não está em partida." });
-      }
-      throw err;
-    }
-
-    const dispatched = dispatchWarRoomAlerts(warRoomData, webhookUrl, prefs, rawId);
-
-    log("DISCORD TRIGGER OK", `${rawId} | dispatched=${dispatched} alertas`);
-    return res.json({ dispatched, gameTime: warRoomData.gameTime });
-
-  } catch (err) {
-    const s = err.status ?? 500;
-    log("DISCORD TRIGGER ERRO", `${s} — ${err.message}`);
-    return res.status(s).json({ error: "Erro ao disparar alertas Discord.", detail: err.message });
-  }
+  log("DRAFT OK", `known=${strategies.length} | unknown=${unknown.length}`);
+  return res.json({ strategies, unknown, summary });
 });
 
 // =============================================================================
@@ -1208,11 +1044,9 @@ app.get("/health", (_req, res) => res.json({
     timelines: TIMELINE_CACHE.size,
     players:   PLAYER_CACHE.size,
     ai:        AI_CACHE.size,
-    puuids:    PUUID_CACHE.size,
   },
-  platform:   REGION_PLATFORM,
-  aiEnabled:  !!process.env.GROQ_API_KEY,
-  rateLimits: getRateLimitStatus(),
+  platform:  REGION_PLATFORM,
+  aiEnabled: !!process.env.GROQ_API_KEY,
 }));
 
 if (process.env.NODE_ENV === "production") {
@@ -1226,7 +1060,7 @@ app.listen(PORT, "0.0.0.0", () => {
   const env = process.env.NODE_ENV ?? "development";
   console.log(`\n🚀 Atlas Server → http://0.0.0.0:${PORT}  [${env}]`);
   console.log(`   RIOT_API_KEY : ✅ ${RIOT_API_KEY.slice(0, 12)}…`);
-  console.log(`   Cache        : ✅ match / timeline / player (TTL 15 min) | live (180s/60s)`);
+  console.log(`   Cache        : ✅ match / timeline / player (TTL 15 min) | ai (TTL 1h)`);
   console.log(`   Plataforma   : ✅ ${REGION_PLATFORM} (override: RIOT_PLATFORM env var)`);
   console.log(`   Concorrência : ✅ 5 requests simultâneos por lote (20 partidas)\n`);
 });

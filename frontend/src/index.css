@@ -3,52 +3,86 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
   body {
-    @apply bg-surface-900 text-gray-100 font-sans antialiased;
+    @apply bg-navy-950 text-slate-200 font-sans antialiased;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-surface-800;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-blue-700 rounded-full;
-  }
+  /* ── Scrollbar Pro ──────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { @apply bg-navy-900; }
+  ::-webkit-scrollbar-thumb { @apply bg-navy-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0, 240, 255, 0.35); }
+
+  /* ── Typography globals ─────────────────────────────────────────────────── */
+  h1, h2, h3 { @apply font-sans; }
 }
 
 @layer components {
+  /* ── Cards ──────────────────────────────────────────────────────────────── */
   .card {
-    @apply bg-surface-800 border border-white/5 rounded-2xl p-5;
+    @apply bg-navy-900 border border-white/8 rounded-2xl p-5 shadow-card;
+  }
+  .card-sm {
+    @apply bg-navy-900 border border-white/8 rounded-xl p-4 shadow-card;
   }
 
-  .badge {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold;
-  }
-
+  /* ── Buttons ────────────────────────────────────────────────────────────── */
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-500 active:bg-blue-700
-           text-white font-semibold px-6 py-3 rounded-xl
-           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-surface-900;
+    @apply bg-electric/10 border border-electric/40 text-electric font-semibold
+           px-5 py-2.5 rounded-xl text-sm transition-all duration-200
+           hover:bg-electric/20 hover:border-electric/70 hover:shadow-electric-sm
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-electric/40 focus:ring-offset-2 focus:ring-offset-navy-950;
   }
+
+  .btn-ghost {
+    @apply text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all
+           rounded-xl px-3 py-2 text-sm font-medium;
+  }
+
+  .btn-danger {
+    @apply bg-neon-red/10 border border-neon-red/40 text-neon-red font-semibold
+           px-4 py-2 rounded-xl text-sm transition-all
+           hover:bg-neon-red/20 hover:shadow-red-sm;
+  }
+
+  /* ── Labels ─────────────────────────────────────────────────────────────── */
+  .label-xs {
+    @apply text-[10px] font-bold uppercase tracking-widest text-slate-500 font-mono;
+  }
+
+  /* ── Match Tags ─────────────────────────────────────────────────────────── */
+  .tag { @apply text-[10px] font-bold px-2 py-0.5 rounded-full border font-mono; }
+  .tag-green  { @apply tag bg-emerald-900/40 border-emerald-700/50 text-emerald-300; }
+  .tag-red    { @apply tag bg-red-900/40     border-red-700/50     text-red-300; }
+  .tag-blue   { @apply tag bg-blue-900/40    border-blue-700/50    text-blue-300; }
+  .tag-yellow { @apply tag bg-yellow-900/40  border-yellow-700/50  text-yellow-300; }
+  .tag-purple { @apply tag bg-purple-900/40  border-purple-700/50  text-purple-300; }
+  .tag-cyan   { @apply tag bg-electric/10    border-electric/30    text-electric; }
+
+  /* ── Stat values (monospace numbers) ────────────────────────────────────── */
+  .stat-value { @apply font-mono text-3xl font-bold leading-none; }
+  .stat-sm    { @apply font-mono text-xl font-bold leading-none; }
+
+  /* ── Side divider ──────────────────────────────────────────────────────── */
+  .divider { @apply border-t border-white/5 my-4; }
 }
 
-/* Markdown-like rendering inside AI text */
-.ai-content h3 {
-  @apply text-base font-semibold text-blue-300 mt-5 mb-2;
+/* ── AI Content markdown-like ───────────────────────────────────────────── */
+.ai-content h3  { @apply text-base font-semibold text-electric mt-5 mb-2; }
+.ai-content p   { @apply text-slate-300 leading-relaxed mb-3; }
+.ai-content ul  { @apply space-y-1.5 mb-3; }
+.ai-content li  { @apply text-slate-300 leading-relaxed pl-4 relative; }
+.ai-content li::before { content: "▸"; @apply absolute left-0 text-electric; }
+
+/* ── Glow border on hover ───────────────────────────────────────────────── */
+.hover-glow {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
-.ai-content p {
-  @apply text-gray-300 leading-relaxed mb-3;
-}
-.ai-content ul {
-  @apply space-y-1.5 mb-3;
-}
-.ai-content li {
-  @apply text-gray-300 leading-relaxed pl-4 relative;
-}
-.ai-content li::before {
-  content: "▸";
-  @apply absolute left-0 text-blue-400;
+.hover-glow:hover {
+  box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.3), 0 4px 24px rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.25) !important;
 }
