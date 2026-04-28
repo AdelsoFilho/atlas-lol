@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import axios from "axios";
+import { useGameClock, fmtTime, FRESHNESS_CONFIG } from "../hooks/useGameClock";
 import {
   Swords,
   Radio,
@@ -25,7 +26,8 @@ import {
 //   riotId {string} — "GameName#TAG"
 // =============================================================================
 
-const POLL_INTERVAL_MS = 180_000;
+// Intervalo inicial de polling (substituído por nextUpdateIn da API após a 1ª resposta)
+const DEFAULT_POLL_SEC = 60;
 
 // ---------------------------------------------------------------------------
 // Mappings
@@ -365,13 +367,17 @@ function fmtCountdown(sec) {
 // ---------------------------------------------------------------------------
 
 export default function WarRoomDashboard({ riotId }) {
-  const [data,          setData]          = useState(null);
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState(null);
-  const [simulate,      setSimulate]      = useState(false);
-  const [countdown,     setCountdown]     = useState(POLL_INTERVAL_MS / 1000);
-  const [events,        setEvents]        = useState([]);   // accumulated events
-  const [headerFlash,   setHeaderFlash]   = useState(false);
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [simulate,    setSimulate]    = useState(false);
+  const [receivedAt,  setReceivedAt]  = useState(null);   // Date.now() ao receber resposta
+  const [events,      setEvents]      = useState([]);     // accumulated events
+  const [headerFlash, setHeaderFlash] = useState(false);
+
+  // Intervalo dinâmico para próximo poll (da API) e refs de controle
+  const nextUpdateRef = useRef(DEFAULT_POLL_SEC);
+  const pollTimerRef  = useRef(null);
 
   // Ref to keep latest events inside polling callback without stale closure
   const eventsRef = useRef([]);
@@ -387,7 +393,11 @@ export default function WarRoomDashboard({ riotId }) {
       const incoming = res.data;
 
       setData(incoming);
+      setReceivedAt(Date.now());
       setError(null);
+
+      // Atualiza o intervalo para o próximo poll baseado na fase do jogo
+      nextUpdateRef.current = incoming.nextUpdateIn ?? DEFAULT_POLL_SEC;
 
       // Accumulate live events (prepend new, max 20)
       if (incoming.liveEvents?.length) {
@@ -403,32 +413,52 @@ export default function WarRoomDashboard({ riotId }) {
       setTimeout(() => setHeaderFlash(false), 1000);
     } catch (err) {
       setError(err?.response?.data?.message ?? err.message ?? "Erro ao carregar dados");
+      nextUpdateRef.current = 90; // backoff conservador em erro
     } finally {
       setLoading(false);
-      setCountdown(POLL_INTERVAL_MS / 1000);
     }
   }, [riotId, simulate]);
 
-  // ---- polling effect ------------------------------------------------------
+  // ---- polling effect (setTimeout adaptativo) -------------------------------
+  // Cada resposta da API define nextUpdateRef.current (45-90s conforme fase/rate limit)
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setData(null);
     setEvents([]);
-    fetchData();
 
-    const pollId = setInterval(fetchData, POLL_INTERVAL_MS);
-    return () => clearInterval(pollId);
+    async function poll() {
+      if (cancelled) return;
+      await fetchData();
+      if (!cancelled) {
+        pollTimerRef.current = setTimeout(poll, nextUpdateRef.current * 1000);
+      }
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(pollTimerRef.current);
+    };
   }, [fetchData]);
 
-  // ---- countdown ticker ----------------------------------------------------
+  // ---- relógio projetado + freshness ----------------------------------------
+  // Converte "MM:SS" do data.gameTime para segundos (para o hook)
+  function parseGameTimeSec(gt) {
+    if (!gt) return null;
+    const [m, s] = String(gt).split(":").map(Number);
+    return (isNaN(m) ? 0 : m) * 60 + (isNaN(s) ? 0 : s);
+  }
 
-  useEffect(() => {
-    const tickId = setInterval(() => {
-      setCountdown(c => (c <= 1 ? POLL_INTERVAL_MS / 1000 : c - 1));
-    }, 1000);
-    return () => clearInterval(tickId);
-  }, []);
+  const gameLengthSec  = parseGameTimeSec(data?.gameTime);
+  const { projectedSec, freshness, elapsed } = useGameClock(
+    gameLengthSec,
+    receivedAt,
+    data?.nextUpdateIn ?? DEFAULT_POLL_SEC,
+  );
+  const freshnessConf = FRESHNESS_CONFIG[freshness];
+  const countdown     = Math.max(0, (data?.nextUpdateIn ?? DEFAULT_POLL_SEC) - elapsed);
 
   // ---- render: loading -----------------------------------------------------
 
@@ -535,10 +565,19 @@ export default function WarRoomDashboard({ riotId }) {
           <span className="text-red-400 text-xs font-bold tracking-wider">AO VIVO</span>
         </div>
 
-        {/* Game time */}
-        <span className="font-mono text-cyan-300 text-sm font-bold">
-          {data.gameTime ?? "--:--"}
-        </span>
+        {/* Game time — projetado com dot de freshness */}
+        {gameLengthSec != null ? (
+          <div className="flex items-center gap-1.5" title={freshnessConf.label}>
+            <span className={`w-1.5 h-1.5 rounded-full ${freshnessConf.dot}`} />
+            <span className={`font-mono text-sm font-bold ${freshnessConf.text}`}>
+              {fmtTime(projectedSec)}
+            </span>
+          </div>
+        ) : (
+          <span className="font-mono text-cyan-300 text-sm font-bold">
+            {data.gameTime ?? "--:--"}
+          </span>
+        )}
 
         {/* Game mode */}
         {data.gameMode && (
@@ -654,7 +693,7 @@ export default function WarRoomDashboard({ riotId }) {
       {/* ── Footer note ─────────────────────────────────────────────────── */}
       <p className="text-center text-[10px] text-gray-800 font-mono pb-1">
         {data.simulated ? "dados simulados · " : ""}
-        atualiza a cada {POLL_INTERVAL_MS / 1000}s
+        atualiza a cada {data.nextUpdateIn ?? DEFAULT_POLL_SEC}s
         {data.gameId ? ` · game ${data.gameId.slice(-6)}` : ""}
       </p>
     </div>

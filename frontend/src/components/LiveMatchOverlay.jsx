@@ -4,6 +4,7 @@ import {
   Radio, RefreshCw, TrendingUp, TrendingDown,
   Minus, AlertTriangle, Tv2, FlaskConical,
 } from "lucide-react";
+import { useGameClock, fmtTime, FRESHNESS_CONFIG } from "../hooks/useGameClock";
 
 // =============================================================================
 // LiveMatchOverlay.jsx — War Room ao Vivo
@@ -13,17 +14,14 @@ import {
 //   · Composição: Meu Time vs Inimigos
 //   · Tendência (Rising / Stable / Collapsing)
 //   · Alerta preditivo de composição
-//   · Countdown até próxima verificação (180s)
+//   · Relógio projetado + indicador de freshness (🟢/🟡/🟠)
 //
-// Smart polling:
-//   · A cada 180s chama GET /api/live/:riotId
-//   · Modo simulação (?simulate=true) para testar sem estar em jogo
-//
-// Props:
-//   riotId {string} — "Nome#TAG"
+// Smart polling adaptativo:
+//   · O backend retorna `nextUpdateIn` (s) calculado pelo smartPoller
+//   · Intervalo base: 45s early game, 60s mid, 90s late
+//   · Multiplicadores dinâmicos por uso do rate limit da Riot API
+//   · setTimeout recursivo — o intervalo muda a cada resposta
 // =============================================================================
-
-const POLL_INTERVAL = 180_000; // 180s (espelha o cache do servidor)
 
 // ── Gauge de Momentum (SVG meio-arco) ────────────────────────────────────────
 
@@ -62,14 +60,27 @@ function MomentumGauge({ score, trend }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function LiveMatchOverlay({ riotId }) {
-  const [phase,     setPhase]     = useState("idle");    // idle|loading|live|offline|error
-  const [liveData,  setLiveData]  = useState(null);
-  const [countdown, setCountdown] = useState(POLL_INTERVAL / 1000);
-  const [simMode,   setSimMode]   = useState(false);
+  const [phase,      setPhase]      = useState("idle");   // idle|loading|live|offline|error
+  const [liveData,   setLiveData]   = useState(null);
+  const [receivedAt, setReceivedAt] = useState(null);     // Date.now() ao receber a resposta
+  const [simMode,    setSimMode]    = useState(false);
 
-  const timerRef = useRef(null);
-  const pollRef  = useRef(null);
+  // Intervalo para o próximo poll — atualizado a cada resposta da API
+  const nextUpdateRef = useRef(60);
+  const pollRef       = useRef(null);
 
+  // ── Relógio projetado + freshness (avança 1s/s no client) ──────────────────
+  // projectedSec: gameTime estimado no momento atual
+  // freshness: "live" (<15s) | "projected" (em andamento) | "syncing" (perto do próximo poll)
+  const { projectedSec, freshness, elapsed } = useGameClock(
+    liveData?.gameLengthSec ?? null,
+    receivedAt,
+    liveData?.nextUpdateIn ?? 60,
+  );
+  const freshnessConf = FRESHNESS_CONFIG[freshness];
+  const countdown     = Math.max(0, (liveData?.nextUpdateIn ?? 60) - elapsed);
+
+  // ── Fetch da partida ao vivo ─────────────────────────────────────────────
   const fetchLive = useCallback(async (sim) => {
     if (!riotId) return;
     setPhase("loading");
@@ -77,32 +88,34 @@ export default function LiveMatchOverlay({ riotId }) {
       const url = `/api/live/${encodeURIComponent(riotId)}${sim ? "?simulate=true" : ""}`;
       const { data } = await axios.get(url);
       setLiveData(data);
+      setReceivedAt(Date.now());
       setPhase(data.isLive ? "live" : "offline");
+      nextUpdateRef.current = data.nextUpdateIn ?? 60;
     } catch {
       setPhase("error");
+      nextUpdateRef.current = 90; // backoff conservador em caso de erro
     }
-    setCountdown(POLL_INTERVAL / 1000);
   }, [riotId]);
 
-  // Inicia polling sempre que riotId ou simMode mudar
+  // ── Polling adaptativo (setTimeout recursivo) ────────────────────────────
+  // Cada resposta define quando será o próximo poll via nextUpdateRef.current
   useEffect(() => {
     if (!riotId) return;
+    let cancelled = false;
 
-    fetchLive(simMode);
+    async function poll() {
+      if (cancelled) return;
+      await fetchLive(simMode);
+      if (!cancelled) {
+        pollRef.current = setTimeout(poll, nextUpdateRef.current * 1000);
+      }
+    }
 
-    // Tick de countdown
-    timerRef.current = setInterval(() => {
-      setCountdown(c => Math.max(0, c - 1));
-    }, 1000);
-
-    // Re-poll a cada 180s
-    pollRef.current = setInterval(() => {
-      fetchLive(simMode);
-    }, POLL_INTERVAL);
+    poll();
 
     return () => {
-      clearInterval(timerRef.current);
-      clearInterval(pollRef.current);
+      cancelled = true;
+      clearTimeout(pollRef.current);
     };
   }, [riotId, simMode, fetchLive]);
 
@@ -155,7 +168,18 @@ export default function LiveMatchOverlay({ riotId }) {
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
             {phase === "live" ? "Ao Vivo" : "War Room"}
           </p>
-          {phase === "live" && liveData?.gameTime && (
+
+          {/* Relógio projetado + dot de freshness */}
+          {phase === "live" && liveData?.gameLengthSec != null && (
+            <div className="flex items-center gap-1.5" title={freshnessConf.label}>
+              <span className={`w-1.5 h-1.5 rounded-full ${freshnessConf.dot}`} />
+              <span className={`font-mono text-xs ${freshnessConf.text}`}>
+                {fmtTime(projectedSec)}
+              </span>
+            </div>
+          )}
+          {/* Fallback para quando não há gameLengthSec (ex: cache antigo) */}
+          {phase === "live" && liveData?.gameLengthSec == null && liveData?.gameTime && (
             <span className="font-mono text-xs text-gray-500">{liveData.gameTime}</span>
           )}
         </div>
@@ -175,7 +199,7 @@ export default function LiveMatchOverlay({ riotId }) {
             {simMode ? "sim ON" : "sim"}
           </button>
 
-          {/* Refresh + countdown */}
+          {/* Refresh manual + countdown */}
           <button
             onClick={() => fetchLive(simMode)}
             disabled={phase === "loading"}

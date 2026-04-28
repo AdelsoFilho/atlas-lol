@@ -48,8 +48,8 @@ const ARCHETYPES = {
 
 // ── Cache de partidas ao vivo ─────────────────────────────────────────────────
 const LIVE_CACHE = new Map(); // puuid → { data, ts, ttl }
-const LIVE_TTL   = 180_000;  // 180s — partida ativa
-const MISS_TTL   =  60_000;  // 60s  — fora de partida
+const LIVE_TTL   =  40_000;  // 40s — partida ativa (smartPoller usa 45-90s; cache levemente abaixo)
+const MISS_TTL   =  25_000;  // 25s  — fora de partida
 
 // ── Champion ID → Name (carregado do Data Dragon) ────────────────────────────
 let champIdToName   = {};

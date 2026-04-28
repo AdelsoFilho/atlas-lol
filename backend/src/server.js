@@ -23,6 +23,7 @@ const { generateDailyQuests }   = require("./services/dailyQuests");
 const { getLiveGame, getSimulatedGame } = require("./services/liveSpectator");
 const { getWarRoom, getSimulatedWarRoom }       = require("./services/warRoomEngine");
 const { sendTestAlert, dispatchWarRoomAlerts }  = require("./services/discordAlerter");
+const { updateFromHeaders, getDynamicInterval, getRateLimitStatus } = require("./services/smartPoller");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -41,8 +42,10 @@ const MATCH_CACHE    = new Map(); // matchId  → { data, ts }
 const TIMELINE_CACHE = new Map(); // matchId  → { data, ts }
 const PLAYER_CACHE   = new Map(); // puuid    → { data, ts }
 const AI_CACHE       = new Map(); // matchId:puuid → { data, ts }  (TTL 1h — respostas custam quota)
+const PUUID_CACHE    = new Map(); // "gameName#tagLine" → { puuid, ts }
 const CACHE_TTL      = 15 * 60 * 1000;          // 15 minutos
 const AI_CACHE_TTL   = 60 * 60 * 1000;          // 1 hora
+const PUUID_TTL      = 15 * 60 * 1000;          // 15 minutos (PUUID não muda)
 
 function cacheGet(store, key) {
   const entry = store.get(key);
@@ -51,6 +54,25 @@ function cacheGet(store, key) {
   return entry.data;
 }
 function cacheSet(store, key, data) { store.set(key, { data, ts: Date.now() }); }
+
+// Resolve PUUID com cache de 15 min (evita chamadas redundantes à account-v1 durante o polling)
+async function resolvePuuid(gameName, tagLine) {
+  const riotKey = `${gameName.toLowerCase()}#${tagLine.toLowerCase()}`;
+  const hit     = PUUID_CACHE.get(riotKey);
+  if (hit && Date.now() - hit.ts < PUUID_TTL) return hit.puuid;
+  const { puuid } = await riotGet(
+    `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+  );
+  PUUID_CACHE.set(riotKey, { puuid, ts: Date.now() });
+  return puuid;
+}
+
+// Converte "MM:SS" → segundos (para getDynamicInterval em rotas sem gameLengthSec)
+function parseGameTimeSec(gameTime) {
+  if (!gameTime || typeof gameTime !== "string") return 0;
+  const [m, s] = gameTime.split(":").map(Number);
+  return (isNaN(m) ? 0 : m) * 60 + (isNaN(s) ? 0 : s);
+}
 
 // =============================================================================
 // UTILITÁRIOS
@@ -68,6 +90,7 @@ async function riotGet(url, params = {}) {
         params,
         timeout: 12_000,
       });
+      updateFromHeaders(res.headers); // alimenta o smartPoller com os headers de rate limit
       return res.data;
     } catch (err) {
       const status = err.response?.status;
@@ -1021,9 +1044,7 @@ app.get("/api/live/:riotId", async (req, res) => {
   log("LIVE REQUEST", rawId);
 
   try {
-    const { puuid } = await riotGet(
-      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
-    );
+    const puuid = await resolvePuuid(gameName, tagLine);
 
     // Passa histórico do jogador se disponível (enriquece o Momentum Score)
     const playerData    = cacheGet(PLAYER_CACHE, puuid);
@@ -1032,9 +1053,10 @@ app.get("/api/live/:riotId", async (req, res) => {
       kda:     playerData.stats?.kda,
     } : null;
 
-    const result = await getLiveGame(puuid, REGION_PLATFORM, riotGet, playerHistory);
-    log("LIVE OK", `${rawId} | isLive=${result.isLive} | fromCache=${result.fromCache} | score=${result.momentumScore ?? "N/A"}`);
-    return res.json(result);
+    const result       = await getLiveGame(puuid, REGION_PLATFORM, riotGet, playerHistory);
+    const nextUpdateIn = Math.round(getDynamicInterval(result.gameLengthSec ?? 0) / 1000);
+    log("LIVE OK", `${rawId} | isLive=${result.isLive} | fromCache=${result.fromCache} | score=${result.momentumScore ?? "N/A"} | nextPoll=${nextUpdateIn}s`);
+    return res.json({ ...result, nextUpdateIn });
 
   } catch (err) {
     const s = err.status ?? 500;
@@ -1071,13 +1093,12 @@ app.get("/api/war-room/:riotId", async (req, res) => {
   log("WAR-ROOM REQUEST", rawId);
 
   try {
-    const { puuid } = await riotGet(
-      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
-    );
+    const puuid = await resolvePuuid(gameName, tagLine);
 
-    const result = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
-    log("WAR-ROOM OK", `${rawId} | gameTime=${result.gameTime} | events=${result.liveEvents.length} | tips=${result.counterStrategies.length}`);
-    return res.json(result);
+    const result       = await getWarRoom(puuid, REGION_PLATFORM, riotGet, REGION_ACCOUNT);
+    const nextUpdateIn = Math.round(getDynamicInterval(parseGameTimeSec(result.gameTime)) / 1000);
+    log("WAR-ROOM OK", `${rawId} | gameTime=${result.gameTime} | events=${result.liveEvents.length} | tips=${result.counterStrategies.length} | nextPoll=${nextUpdateIn}s`);
+    return res.json({ ...result, nextUpdateIn });
 
   } catch (err) {
     const s = err.status ?? 500;
@@ -1152,9 +1173,7 @@ app.post("/api/discord/trigger/:riotId", async (req, res) => {
   log("DISCORD TRIGGER", rawId);
 
   try {
-    const { puuid } = await riotGet(
-      `https://${REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
-    );
+    const puuid = await resolvePuuid(gameName, tagLine);
 
     let warRoomData;
     try {
@@ -1189,9 +1208,11 @@ app.get("/health", (_req, res) => res.json({
     timelines: TIMELINE_CACHE.size,
     players:   PLAYER_CACHE.size,
     ai:        AI_CACHE.size,
+    puuids:    PUUID_CACHE.size,
   },
-  platform:  REGION_PLATFORM,
-  aiEnabled: !!process.env.GROQ_API_KEY,
+  platform:   REGION_PLATFORM,
+  aiEnabled:  !!process.env.GROQ_API_KEY,
+  rateLimits: getRateLimitStatus(),
 }));
 
 if (process.env.NODE_ENV === "production") {
