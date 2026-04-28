@@ -55,8 +55,9 @@ export function PlayerProvider({ children }) {
   const search = useCallback(async (riotId) => {
     if (!riotId?.trim()) return;
     setError(null);
-    setPlayerData(null);
-    setPuuid(null);
+    // Não limpa playerData aqui — mantém dados anteriores visíveis durante o
+    // carregamento. O estado antigo só é descartado em caso de erro ou quando o
+    // novo dado chega com sucesso, evitando flash de tela vazia.
     setLoading(true);
 
     try {
@@ -84,6 +85,10 @@ export function PlayerProvider({ children }) {
         winrate:     data.stats?.winrate     ?? null,
       });
     } catch (err) {
+      // Só limpa os dados anteriores em caso de erro — assim o usuário não vê
+      // uma tela vazia caso a nova busca falhe por problema temporário de rede.
+      setPlayerData(null);
+      setPuuid(null);
       clearSession();
       const msg =
         err.response?.data?.error ??

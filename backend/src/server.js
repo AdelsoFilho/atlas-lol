@@ -219,6 +219,9 @@ function extractParticipants(info, playerPuuid) {
       turretKills:      p.turretKills    ?? 0,
       inhibitorKills:   p.inhibitorKills ?? 0,
       baronKills:       p.baronKills     ?? 0,
+      // ── CS (minions + jungle) ──────────────────────────────────────────────
+      totalMinionsKilled:   p.totalMinionsKilled   ?? 0,
+      neutralMinionsKilled: p.neutralMinionsKilled ?? 0,
       // ── Multi-kills ────────────────────────────────────────────────────────
       doubleKills:      p.doubleKills    ?? 0,
       tripleKills:      p.tripleKills    ?? 0,

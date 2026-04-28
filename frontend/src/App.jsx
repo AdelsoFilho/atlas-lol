@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PlayerProvider } from "./context/PlayerContext";
 import Sidebar         from "./components/Sidebar";
+import ErrorBoundary   from "./components/ErrorBoundary";
 import HomeView        from "./views/HomeView";
 import HistoryView     from "./views/HistoryView";
 import MatchDetailView from "./views/MatchDetailView";
@@ -32,7 +33,11 @@ function AppLayout() {
         <Routes>
           <Route path="/"           element={<HomeView />} />
           <Route path="/history"    element={<HistoryView />} />
-          <Route path="/match/:matchId" element={<MatchDetailView />} />
+          <Route path="/match/:matchId" element={
+            <ErrorBoundary>
+              <MatchDetailView />
+            </ErrorBoundary>
+          } />
           <Route path="/draft"      element={<DraftView />} />
           <Route path="/settings"   element={<SettingsView />} />
         </Routes>

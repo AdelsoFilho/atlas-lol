@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -301,6 +301,16 @@ export default function MatchDetailView() {
   const [tlError,     setTlError]         = useState(null);
   const [activeTab,   setActiveTab]       = useState("insights");
 
+  // Guard flag — useRef so mutations don't trigger re-renders or dep-array churn
+  const tlFetchedRef = useRef(false);
+
+  // Reset guard + timeline whenever the user navigates to a different match
+  useEffect(() => {
+    tlFetchedRef.current = false;
+    setTimeline(null);
+    setTlError(null);
+  }, [matchId]);
+
   // ── Debug log ────────────────────────────────────────────────────────────
   console.log(
     "[MatchDetailView] matchId:", matchId,
@@ -318,12 +328,16 @@ export default function MatchDetailView() {
   );
 
   // ── Carrega timeline ao montar (lazy) ────────────────────────────────────
+  // IMPORTANT: tlFetchedRef (not `timeline` state) guards against double-fetch.
+  // Putting `timeline` in deps would recreate this callback every time
+  // setTimeline() fired, causing an infinite useEffect loop.
   const fetchTimeline = useCallback(async () => {
     if (!matchId || !puuid) {
       if (!puuid) console.warn("[MatchDetailView] puuid ausente — timeline não carregará");
       return;
     }
-    if (timeline) return; // já carregado
+    if (tlFetchedRef.current) return; // já carregado ou em andamento
+    tlFetchedRef.current = true;
 
     setTlLoading(true);
     setTlError(null);
@@ -338,13 +352,14 @@ export default function MatchDetailView() {
       });
       setTimeline(data);
     } catch (err) {
+      tlFetchedRef.current = false; // permite retry manual
       const msg = err.response?.data?.error ?? "Erro ao carregar timeline.";
       console.error("[MatchDetailView] timeline erro:", msg);
       setTlError(msg);
     } finally {
       setTlLoading(false);
     }
-  }, [matchId, puuid, timeline]);
+  }, [matchId, puuid]); // sem `timeline` nos deps — usa ref como guard
 
   useEffect(() => { fetchTimeline(); }, [fetchTimeline]);
 
@@ -436,9 +451,16 @@ export default function MatchDetailView() {
     });
   }
   if (timeline?.laneAnalysis) {
+    // laneAnalysis pode ser um objeto { verdict, detail, trend, ... } vindo do
+    // backend (analyseLaneDiff retorna objeto). Serializar antes de passar ao
+    // InsightCard — React não aceita objetos diretamente como filhos JSX.
+    const la = timeline.laneAnalysis;
+    const laneBody = typeof la === "string"
+      ? la
+      : [la.verdict, la.detail, la.trend].filter(Boolean).join("  ·  ") || JSON.stringify(la);
     insightCards.push({
       icon: "⚔️", title: `Lane vs ${timeline.opponentChampion ?? "oponente"}`, type: "info",
-      body: timeline.laneAnalysis,
+      body: laneBody,
     });
   }
 
@@ -617,7 +639,7 @@ export default function MatchDetailView() {
             <div className="flex flex-col items-center gap-3 py-12">
               <p className="text-neon-red/70 text-sm font-mono">{tlError}</p>
               <button
-                onClick={() => { setTlError(null); setTimeline(null); }}
+                onClick={() => { tlFetchedRef.current = false; setTlError(null); setTimeline(null); }}
                 className="btn-ghost flex items-center gap-1.5 text-xs"
               >
                 <RefreshCw size={12} />Tentar Novamente
@@ -647,7 +669,7 @@ export default function MatchDetailView() {
             <div className="flex flex-col items-center gap-3 py-12">
               <p className="text-neon-red/70 text-sm font-mono">{tlError}</p>
               <button
-                onClick={() => { setTlError(null); setTimeline(null); }}
+                onClick={() => { tlFetchedRef.current = false; setTlError(null); setTimeline(null); }}
                 className="btn-ghost flex items-center gap-1.5 text-xs"
               >
                 <RefreshCw size={12} />Tentar Novamente
