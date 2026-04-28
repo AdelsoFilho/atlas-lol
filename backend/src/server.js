@@ -1103,9 +1103,9 @@ app.get("/api/war-room/:riotId", async (req, res) => {
 app.post("/api/discord/test", async (req, res) => {
   const { webhookUrl } = req.body ?? {};
 
-  if (!webhookUrl || !String(webhookUrl).startsWith("https://discord.com/api/webhooks/")) {
+  if (!webhookUrl || !String(webhookUrl).match(/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//)) {
     return res.status(400).json({
-      error: "URL de webhook inválida. Deve começar com https://discord.com/api/webhooks/",
+      error: "URL de webhook inválida. Use a URL gerada pelo Discord (discord.com ou discordapp.com).",
     });
   }
 
@@ -1144,7 +1144,7 @@ app.post("/api/discord/trigger/:riotId", async (req, res) => {
   if (!rawId.includes("#"))
     return res.status(400).json({ error: "Formato inválido. Use Nome#TAG" });
 
-  if (!webhookUrl || !String(webhookUrl).startsWith("https://discord.com/api/webhooks/")) {
+  if (!webhookUrl || !String(webhookUrl).match(/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//)) {
     return res.status(400).json({ error: "webhookUrl inválida." });
   }
 

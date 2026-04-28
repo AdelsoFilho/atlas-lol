@@ -104,9 +104,9 @@ export default function DiscordSettings({ riotId, isOpen, onClose }) {
       setTestMsg("Cole a URL do webhook antes de testar.");
       return;
     }
-    if (!webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+    if (!webhookUrl.match(/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//)) {
       setTestState("error");
-      setTestMsg("URL inválida. Deve começar com https://discord.com/api/webhooks/");
+      setTestMsg("URL inválida. Deve ser uma URL de webhook do Discord.");
       return;
     }
     setTestState("loading");
