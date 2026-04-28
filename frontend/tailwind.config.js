@@ -51,6 +51,15 @@ export default {
         "red-sm":      "0 0 8px rgba(255, 42, 42, 0.30)",
         "card":        "0 4px 24px rgba(0, 0, 0, 0.40)",
       },
+      // Tailwind's default opacity scale doesn't include 3, 4, 8, 15.
+      // These are used as color opacity modifiers (e.g. border-white/8).
+      // @apply directives require the value to be in the opacity scale.
+      opacity: {
+        3:  "0.03",
+        4:  "0.04",
+        8:  "0.08",
+        15: "0.15",
+      },
     },
   },
   plugins: [],
