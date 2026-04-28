@@ -4,21 +4,49 @@ import axios from "axios";
 // =============================================================================
 // PlayerContext — Estado global do jogador analisado
 //
+// Persiste em sessionStorage para sobreviver a refreshes e navegação direta
+// para /match/:id sem precisar rebuscar o jogador.
+//
 // Provê:
-//   playerData  { gameName, tagLine, stats, recentMatches, diagnosis }
+//   playerData  { gameName, tagLine, puuid, stats, recentMatches, diagnosis }
 //   puuid       string | null
 //   riotId      "Nome#TAG" | null
 //   loading     boolean
 //   error       string | null
-//   search(id)  async fn — busca o jogador na API e atualiza o estado
-//   addToHistoryRef  ref para o callback do SearchBar (enriquece histórico)
+//   search(id)  async fn
+//   addToHistoryRef  ref para callback do SearchBar
 // =============================================================================
 
 const PlayerContext = createContext(null);
 
+// ── sessionStorage helpers ────────────────────────────────────────────────────
+
+const SESSION_KEY = "atlas_player_v2";
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveSession(playerData, puuid) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ playerData, puuid }));
+  } catch {}
+}
+
+function clearSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+
 export function PlayerProvider({ children }) {
-  const [playerData, setPlayerData] = useState(null);
-  const [puuid,      setPuuid]      = useState(null);
+  // Lazy init: restaura do sessionStorage imediatamente (antes do primeiro render)
+  const [playerData, setPlayerData] = useState(() => loadSession()?.playerData ?? null);
+  const [puuid,      setPuuid]      = useState(() => loadSession()?.puuid      ?? null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
 
@@ -37,12 +65,17 @@ export function PlayerProvider({ children }) {
 
       setPlayerData(data);
 
-      // Extrai PUUID do primeiro participante identificado como o jogador
+      // O servidor inclui puuid diretamente no payload desde a refatoração.
+      // Fallback: extrai do array de participantes (compatibilidade com cache antigo).
       const playerPuuid =
-        data.recentMatches?.[0]?.participants?.find(p => p.isPlayer)?.puuid ?? null;
+        data.puuid ??
+        data.recentMatches?.[0]?.participants?.find(p => p.isPlayer)?.puuid ??
+        null;
       setPuuid(playerPuuid);
 
-      // Enriquece o histórico de buscas no SearchBar/Sidebar
+      // Persiste na sessão — sobrevive a refreshes e navegação direta por URL
+      saveSession(data, playerPuuid);
+
       addToHistoryRef.current?.({
         riotId:      riotId.trim(),
         gameName:    data.gameName,
@@ -51,10 +84,12 @@ export function PlayerProvider({ children }) {
         winrate:     data.stats?.winrate     ?? null,
       });
     } catch (err) {
+      clearSession();
       const msg =
         err.response?.data?.error ??
         (err.code === "ECONNREFUSED" ? "Servidor offline." : null) ??
-        err.message ?? "Erro desconhecido.";
+        err.message ??
+        "Erro desconhecido.";
       setError(msg);
     } finally {
       setLoading(false);

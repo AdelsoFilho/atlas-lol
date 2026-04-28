@@ -6,44 +6,97 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import {
-  ArrowLeft, Clock, Swords, Crown, Flame, Skull, Shield,
-  TrendingUp, TrendingDown, ThumbsUp, ThumbsDown, Loader2,
-  AlertCircle, ChevronDown, ChevronUp, Activity, Zap, Target,
-  BarChart3, List, Lightbulb, Package,
+  ArrowLeft, Swords, Loader2, AlertCircle,
+  Activity, BarChart3, List, Lightbulb, RefreshCw,
 } from "lucide-react";
 import { usePlayer } from "../context/PlayerContext";
 import InsightCard from "../components/InsightCard";
 import MatchupGrid from "../components/MatchupGrid";
-import { analyzeBuild } from "../services/buildAnalyzer";
-import { ItemRow } from "../components/ItemDisplay";
 
 // =============================================================================
 // MatchDetailView — Página completa de análise pós-game
 //
 // Rota: /match/:matchId
-// Carrega timeline via GET /api/timeline/:matchId?puuid=:puuid
+// Dados estáticos vêm do PlayerContext (recentMatches — sempre disponíveis).
+// Timeline é carregada lazy via GET /api/timeline/:matchId?puuid=:puuid
 //
-// Layout:
-//   [Back] + Hero header (resultado + KDA + duração)
-//   10 participantes em 2 fileiras (Azul vs Vermelho)
-//   Tabs: Insights | Gold Chart | Timeline | Stats
+// Estados:
+//   playerData null + loading  → SkeletonLoader
+//   playerData null + !loading → NoPlayerState
+//   match null                 → MatchNotFoundState
+//   match found                → Renderização completa
 // =============================================================================
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function kdaColor(k) {
-  return k >= 4 ? "text-emerald-400" : k >= 2.5 ? "text-blue-400"
-       : k >= 1.5 ? "text-yellow-400" : "text-neon-red";
+  return k >= 4 ? "text-emerald-400"
+       : k >= 2.5 ? "text-blue-400"
+       : k >= 1.5 ? "text-yellow-400"
+       : "text-neon-red";
 }
 
 function fmtGold(g) {
   return g >= 1000 ? `${(g / 1000).toFixed(1)}k` : String(g);
 }
 
-const LANE_LABEL = {
-  TOP: "Top", JUNGLE: "Jungle", MID: "Mid",
-  ADC: "ADC", SUPPORT: "Suporte", UNKNOWN: "?",
-};
+// ── Skeleton Loader ───────────────────────────────────────────────────────────
+
+function MatchDetailSkeleton() {
+  const Pulse = ({ cls }) => (
+    <div className={`bg-navy-800 rounded-xl animate-pulse ${cls}`} />
+  );
+
+  return (
+    <div className="px-6 py-6 space-y-6 max-w-6xl">
+      {/* Back */}
+      <Pulse cls="h-5 w-28" />
+
+      {/* Hero card */}
+      <div className="card">
+        <div className="flex items-center gap-6">
+          <Pulse cls="h-16 w-12" />
+          <Pulse cls="h-16 w-16 rounded-2xl" />
+          <div className="space-y-2 flex-1">
+            <Pulse cls="h-6 w-32" />
+            <Pulse cls="h-8 w-48" />
+            <Pulse cls="h-4 w-24" />
+          </div>
+          <div className="flex gap-6">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="space-y-1">
+                <Pulse cls="h-6 w-12" />
+                <Pulse cls="h-3 w-10" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Teams */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card space-y-2">
+          <Pulse cls="h-4 w-20 mb-3" />
+          {[1,2,3,4,5].map(i => <Pulse key={i} cls="h-10 w-full" />)}
+        </div>
+        <div className="card space-y-2">
+          <Pulse cls="h-4 w-24 mb-3" />
+          {[1,2,3,4,5].map(i => <Pulse key={i} cls="h-10 w-full" />)}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Pulse cls="h-12 w-full" />
+
+      {/* Content */}
+      <div className="card">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1,2,3].map(i => <Pulse key={i} cls="h-32" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Participant Row ───────────────────────────────────────────────────────────
 
@@ -53,14 +106,16 @@ function ParticipantRow({ p, isPlayer, side }) {
 
   return (
     <div className={`flex items-center gap-2 py-1.5 px-2 rounded-lg
-      hover:bg-white/5 transition-colors ${isPlayer ? "bg-electric/5 border border-electric/20" : ""}
+      hover:bg-white/5 transition-colors
+      ${isPlayer ? "bg-electric/5 border border-electric/20" : ""}
       ${alignRight ? "flex-row-reverse" : ""}`}>
       {/* Champion initials */}
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 border ${
-        side === "blue"
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 border
+        ${side === "blue"
           ? "bg-blue-900/50 border-blue-700/50 text-blue-300"
           : "bg-red-900/50 border-red-700/50 text-red-300"
-      } ${isPlayer ? "ring-1 ring-electric" : ""}`}>
+        }
+        ${isPlayer ? "ring-1 ring-electric" : ""}`}>
         {p.championName?.slice(0, 2) ?? "??"}
       </div>
       {/* Name + KDA */}
@@ -104,25 +159,26 @@ function GoldChart({ goldDiffs, playerTeam }) {
   return (
     <div className="space-y-2">
       <p className="label-xs flex items-center gap-1.5">
-        <BarChart3 size={11} />Gold Diff do Time ({playerTeam === "blue" ? "Azul" : "Vermelho"})
+        <BarChart3 size={11} />
+        Gold Diff do Time ({playerTeam === "blue" ? "Azul" : "Vermelho"})
       </p>
       <div className="h-48 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={goldDiffs} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
             <defs>
               <linearGradient id="goldPos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={positiveColor} stopOpacity={0.3} />
+                <stop offset="5%"  stopColor={positiveColor} stopOpacity={0.3} />
                 <stop offset="95%" stopColor={positiveColor} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="goldNeg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={negativeColor} stopOpacity={0.3} />
+                <stop offset="5%"  stopColor={negativeColor} stopOpacity={0.3} />
                 <stop offset="95%" stopColor={negativeColor} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="minute" tick={{ fill: "#475569", fontSize: 10 }} tickLine={false} />
             <YAxis tick={{ fill: "#475569", fontSize: 10 }} tickLine={false}
-                   tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
+                   tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
             <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
             <Area
@@ -168,10 +224,10 @@ function describeEvent(ev) {
 
 function TimelinePanel({ events }) {
   if (!events?.length) return (
-    <p className="text-slate-600 text-sm font-mono text-center py-12">Sem eventos registrados.</p>
+    <p className="text-slate-600 text-sm font-mono text-center py-12">
+      Sem eventos registrados.
+    </p>
   );
-
-  const relevant = events.filter(e => e.type !== "CHAMPION_KILL" || e.isPlayerDeath || e.isPlayerKill || e.type.includes("BARON") || e.type.includes("DRAGON"));
 
   return (
     <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
@@ -196,31 +252,23 @@ function StatsTable({ participants, playerPuuid }) {
   const blueTeam = participants.filter(p => p.teamId === 100);
   const redTeam  = participants.filter(p => p.teamId === 200);
 
-  const cols = [
-    { label: "Campeão", key: "championName" },
-    { label: "KDA", key: "_kda" },
-    { label: "CS", key: "_cs" },
-    { label: "Dano", key: "damageAbsolute" },
-    { label: "Gold", key: "goldEarned" },
-    { label: "Visão", key: "visionScore" },
-  ];
-
   function renderTeam(team, header, headerCls) {
     return (
       <div>
         <p className={`label-xs px-3 py-2 border-b border-white/5 ${headerCls}`}>{header}</p>
         {team.map(p => {
           const isPlayer = p.puuid === playerPuuid;
-          const kda = ((p.kills + p.assists) / Math.max(1, p.deaths)).toFixed(2);
-          const cs = (p.totalMinionsKilled ?? 0) + (p.neutralMinionsKilled ?? 0);
+          const kda      = ((p.kills + p.assists) / Math.max(1, p.deaths)).toFixed(2);
+          const cs       = (p.totalMinionsKilled ?? 0) + (p.neutralMinionsKilled ?? 0);
           return (
             <div key={p.participantId}
                  className={`grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono text-slate-400
-                             border-b border-white/4 ${isPlayer ? "bg-electric/5 text-electric" : "hover:bg-white/3"}`}>
+                             border-b border-white/[0.04] last:border-0
+                             ${isPlayer ? "bg-electric/5 text-electric" : "hover:bg-white/[0.03]"}`}>
               <span className="truncate font-semibold text-slate-200">{p.championName}</span>
               <span className={kdaColor(Number(kda))}>{p.kills}/{p.deaths}/{p.assists}</span>
               <span>{cs}</span>
-              <span>{(p.damageAbsolute / 1000).toFixed(1)}k</span>
+              <span>{((p.damageAbsolute ?? p.totalDamage ?? 0) / 1000).toFixed(1)}k</span>
               <span className="text-yellow-500/70">{(p.goldEarned / 1000).toFixed(1)}k</span>
               <span>{p.visionScore ?? 0}</span>
             </div>
@@ -232,55 +280,67 @@ function StatsTable({ participants, playerPuuid }) {
 
   return (
     <div className="space-y-4">
-      {/* Header row */}
       <div className="grid grid-cols-6 gap-2 px-3 py-1 text-[10px] font-mono text-slate-600 uppercase tracking-wider">
-        <span>Campeão</span><span>KDA</span><span>CS</span><span>Dano</span><span>Gold</span><span>Visão</span>
+        <span>Campeão</span><span>KDA</span><span>CS</span>
+        <span>Dano</span><span>Gold</span><span>Visão</span>
       </div>
-      {renderTeam(blueTeam, "Time Azul", "text-blue-400")}
-      {renderTeam(redTeam,  "Time Vermelho", "text-red-400")}
+      {renderTeam(blueTeam, "Time Azul",      "text-blue-400")}
+      {renderTeam(redTeam,  "Time Vermelho",  "text-red-400")}
     </div>
-  );
-}
-
-// ── Tipping Point Card ────────────────────────────────────────────────────────
-
-function TippingPointCard({ tp }) {
-  if (!tp) return null;
-  return (
-    <InsightCard
-      icon="⚠️"
-      title="Ponto de Virada"
-      body={tp.description}
-      type="warning"
-      meta={`Min ${tp.minute} · ${Math.abs(tp.goldDeficit).toLocaleString("pt-BR")} de ouro de deficit`}
-    />
   );
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function MatchDetailView() {
-  const { matchId }               = useParams();
-  const navigate                  = useNavigate();
-  const { playerData, puuid }     = usePlayer();
-  const [timeline,    setTimeline] = useState(null);
-  const [tlLoading,   setTlLoading]= useState(false);
-  const [tlError,     setTlError]  = useState(null);
-  const [activeTab,   setActiveTab]= useState("insights");
+  const { matchId }                       = useParams();
+  const navigate                          = useNavigate();
+  const { playerData, puuid, loading }    = usePlayer();
+  const [timeline,    setTimeline]        = useState(null);
+  const [tlLoading,   setTlLoading]       = useState(false);
+  const [tlError,     setTlError]         = useState(null);
+  const [activeTab,   setActiveTab]       = useState("insights");
 
-  // Busca a partida do contexto
-  const match = playerData?.recentMatches?.find(m => m.matchId === matchId);
+  // ── Debug log ────────────────────────────────────────────────────────────
+  console.log(
+    "[MatchDetailView] matchId:", matchId,
+    "| puuid:", puuid,
+    "| playerData:", playerData ? `${playerData.gameName}#${playerData.tagLine}` : null,
+    "| totalMatches:", playerData?.recentMatches?.length ?? 0,
+  );
 
-  // Carrega timeline ao montar
+  // Busca a partida no contexto (sem fetch adicional — dados já estão carregados)
+  const match = playerData?.recentMatches?.find(m => m.matchId === matchId) ?? null;
+
+  console.log("[MatchDetailView] match lookup →", match
+    ? `${match.champion} ${match.win ? "V" : "D"} ${match.kills}/${match.deaths}/${match.assists}`
+    : "NÃO ENCONTRADA"
+  );
+
+  // ── Carrega timeline ao montar (lazy) ────────────────────────────────────
   const fetchTimeline = useCallback(async () => {
-    if (!matchId || !puuid || timeline) return;
+    if (!matchId || !puuid) {
+      if (!puuid) console.warn("[MatchDetailView] puuid ausente — timeline não carregará");
+      return;
+    }
+    if (timeline) return; // já carregado
+
     setTlLoading(true);
     setTlError(null);
     try {
       const { data } = await axios.get(`/api/timeline/${matchId}?puuid=${puuid}`);
+      console.log("[MatchDetailView] timeline carregada:", {
+        events: data.events?.length,
+        goldDiffs: data.goldDiffs?.length,
+        tippingPoint: data.tippingPoint?.minute ?? null,
+        lane: data.lane,
+        opponentChampion: data.opponentChampion,
+      });
       setTimeline(data);
     } catch (err) {
-      setTlError(err.response?.data?.error ?? "Erro ao carregar timeline.");
+      const msg = err.response?.data?.error ?? "Erro ao carregar timeline.";
+      console.error("[MatchDetailView] timeline erro:", msg);
+      setTlError(msg);
     } finally {
       setTlLoading(false);
     }
@@ -289,32 +349,66 @@ export default function MatchDetailView() {
   useEffect(() => { fetchTimeline(); }, [fetchTimeline]);
 
   // ── Guards ────────────────────────────────────────────────────────────────
-  if (!playerData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen p-8">
-        <p className="text-slate-600 font-mono text-sm">Busque um jogador primeiro.</p>
-      </div>
-    );
+
+  // 1. Buscando jogador → esqueleto
+  if (loading && !playerData) {
+    return <MatchDetailSkeleton />;
   }
 
-  if (!match) {
+  // 2. Sem jogador carregado → instrução clara
+  if (!playerData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8">
-        <AlertCircle size={32} className="text-neon-red/60" />
-        <p className="text-slate-500 font-mono text-sm">Partida não encontrada nos dados atuais.</p>
-        <button onClick={() => navigate("/history")} className="btn-ghost">
-          ← Voltar ao histórico
+        <div className="w-14 h-14 rounded-2xl bg-navy-800 border border-white/10
+                        flex items-center justify-center">
+          <Swords size={24} className="text-slate-600" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-slate-300 font-semibold">Nenhum jogador carregado</p>
+          <p className="text-slate-600 text-sm">Use a barra lateral para buscar um jogador.</p>
+        </div>
+        <button onClick={() => navigate("/")} className="btn-primary">
+          Ir para a busca
         </button>
       </div>
     );
   }
 
+  // 3. Partida não encontrada nos dados locais
+  if (!match) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8">
+        <AlertCircle size={32} className="text-neon-red/60" />
+        <div className="text-center space-y-1">
+          <p className="text-slate-300 font-semibold">Partida não encontrada</p>
+          <p className="text-slate-600 text-xs font-mono break-all max-w-xs">{matchId}</p>
+          <p className="text-slate-600 text-sm mt-2">
+            O ID não está nos dados atuais de{" "}
+            <span className="text-electric">{playerData.gameName}#{playerData.tagLine}</span>.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => navigate("/history")} className="btn-ghost">
+            ← Histórico
+          </button>
+          <button onClick={() => navigate("/")} className="btn-primary">
+            Nova busca
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Dados da partida ──────────────────────────────────────────────────────
+
   const { win, champion, kills, deaths, assists, kda, durationMin, analysis, participants } = match;
   const blueTeam = participants?.filter(p => p.teamId === 100) ?? [];
   const redTeam  = participants?.filter(p => p.teamId === 200) ?? [];
 
-  // Build insights cards from analysis
+  // ── Insights cards ────────────────────────────────────────────────────────
+
   const insightCards = [];
+
   if (analysis?.positives?.length) {
     insightCards.push({
       icon: "✅", title: "O que funcionou", type: "success",
@@ -330,7 +424,9 @@ export default function MatchDetailView() {
   insightCards.push({
     icon: "🎯", title: "Veredito", type: "neutral",
     body: analysis?.verdict ?? "—",
-    meta: `CS/m ${analysis?.csPerMin} · G/m ${analysis?.goldPerMin} · KP ${analysis?.killParticipation}%`,
+    meta: `CS/m ${analysis?.csPerMin ?? "—"} · G/m ${analysis?.goldPerMin ?? "—"} · KP ${
+      analysis?.killParticipation != null ? `${analysis.killParticipation}%` : "—"
+    }`,
   });
   if (timeline?.tippingPoint) {
     insightCards.push({
@@ -346,17 +442,21 @@ export default function MatchDetailView() {
     });
   }
 
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+
   const TABS = [
-    { id: "insights", label: "Insights",    icon: Lightbulb },
-    { id: "gold",     label: "Gold Chart",  icon: BarChart3 },
-    { id: "timeline", label: "Timeline",    icon: Activity  },
-    { id: "stats",    label: "Stats",       icon: List      },
+    { id: "insights", label: "Insights",   icon: Lightbulb },
+    { id: "gold",     label: "Gold Chart", icon: BarChart3 },
+    { id: "timeline", label: "Timeline",   icon: Activity  },
+    { id: "stats",    label: "Stats",      icon: List      },
   ];
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="px-6 py-6 space-y-6 max-w-6xl animate-fade-up">
 
-      {/* ── Back + breadcrumb ────────────────────────────────────────────── */}
+      {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate("/history")}
@@ -366,14 +466,14 @@ export default function MatchDetailView() {
           Histórico
         </button>
         <span className="text-slate-700">/</span>
-        <span className="text-xs font-mono text-slate-600 truncate">{matchId}</span>
+        <span className="text-xs font-mono text-slate-600 truncate max-w-xs">{matchId}</span>
       </div>
 
-      {/* ── HERO HEADER ─────────────────────────────────────────────────── */}
-      <div className={`card border-l-4 ${win ? "border-l-emerald-500" : "border-l-neon-red"}
-                       ${win ? "bg-emerald-950/10" : "bg-red-950/8"}`}>
+      {/* ── HERO HEADER ──────────────────────────────────────────────────── */}
+      <div className={`card border-l-4
+        ${win ? "border-l-emerald-500 bg-emerald-950/10" : "border-l-neon-red bg-red-950/10"}`}>
         <div className="flex items-center gap-6 flex-wrap">
-          {/* Result */}
+          {/* Result badge */}
           <div className="text-center shrink-0">
             <p className={`text-5xl font-black ${win ? "text-emerald-400" : "text-neon-red"}`}>
               {win ? "V" : "D"}
@@ -383,20 +483,25 @@ export default function MatchDetailView() {
             </p>
           </div>
 
-          {/* Champion */}
+          {/* Champion circle */}
           <div className={`w-16 h-16 rounded-2xl border-2 flex items-center justify-center
-                          text-2xl font-black shrink-0 ${
-                            win ? "bg-emerald-900/30 border-emerald-700/50 text-emerald-300"
-                                : "bg-red-900/30 border-red-700/50 text-red-300"
+                          text-2xl font-black shrink-0
+                          ${win
+                            ? "bg-emerald-900/30 border-emerald-700/50 text-emerald-300"
+                            : "bg-red-900/30 border-red-700/50 text-red-300"
                           }`}>
             {champion.slice(0, 2)}
           </div>
 
-          {/* Stats */}
+          {/* Champion + KDA */}
           <div className="space-y-1">
             <p className="text-white font-bold text-xl leading-none">{champion}</p>
             <p className={`text-2xl font-black font-mono ${kdaColor(kda)}`}>
-              {kills} <span className="text-slate-600">/</span> {deaths} <span className="text-slate-600">/</span> {assists}
+              {kills}
+              <span className="text-slate-600"> / </span>
+              {deaths}
+              <span className="text-slate-600"> / </span>
+              {assists}
             </p>
             <p className="text-xs font-mono text-slate-500">KDA {kda}</p>
           </div>
@@ -404,13 +509,32 @@ export default function MatchDetailView() {
           {/* Secondary stats */}
           <div className="flex gap-6 ml-4 flex-wrap">
             {[
-              { label: "CS/min",      value: analysis?.csPerMin,          color: analysis?.csPerMin >= 7 ? "text-emerald-400" : analysis?.csPerMin < 5 ? "text-neon-red" : "text-slate-300" },
-              { label: "Gold/min",    value: analysis?.goldPerMin,        color: analysis?.goldPerMin >= 400 ? "text-yellow-400" : "text-slate-300" },
-              { label: "Duração",     value: `${durationMin}m`,           color: "text-slate-300" },
-              { label: "KP",          value: analysis?.killParticipation ? `${analysis.killParticipation}%` : "—", color: "text-slate-300" },
+              {
+                label: "CS/min",
+                value: analysis?.csPerMin ?? "—",
+                color: analysis?.csPerMin >= 7 ? "text-emerald-400"
+                     : analysis?.csPerMin < 5  ? "text-neon-red"
+                     : "text-slate-300",
+              },
+              {
+                label: "Gold/min",
+                value: analysis?.goldPerMin ?? "—",
+                color: analysis?.goldPerMin >= 400 ? "text-yellow-400" : "text-slate-300",
+              },
+              {
+                label: "Duração",
+                value: `${durationMin}m`,
+                color: "text-slate-300",
+              },
+              {
+                label: "KP",
+                value: analysis?.killParticipation != null
+                  ? `${analysis.killParticipation}%` : "—",
+                color: "text-slate-300",
+              },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center">
-                <p className={`text-lg font-bold font-mono ${color}`}>{value ?? "—"}</p>
+                <p className={`text-lg font-bold font-mono ${color}`}>{value}</p>
                 <p className="text-[10px] text-slate-600 uppercase tracking-wider font-mono">{label}</p>
               </div>
             ))}
@@ -422,26 +546,28 @@ export default function MatchDetailView() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Blue Team */}
         <div className="card p-0 overflow-hidden border-t-2 border-t-blue-600/60">
-          <p className="label-xs px-4 py-2.5 border-b border-white/5 text-blue-400">
-            Time Azul
-          </p>
+          <p className="label-xs px-4 py-2.5 border-b border-white/5 text-blue-400">Time Azul</p>
           <div className="px-3 py-2 space-y-0.5">
-            {blueTeam.map(p => (
-              <ParticipantRow key={p.participantId} p={p}
-                isPlayer={p.puuid === puuid} side="blue" />
-            ))}
+            {blueTeam.length > 0
+              ? blueTeam.map(p => (
+                  <ParticipantRow key={p.participantId} p={p}
+                    isPlayer={p.puuid === puuid} side="blue" />
+                ))
+              : <p className="text-slate-600 text-xs text-center py-4 font-mono">Sem dados</p>
+            }
           </div>
         </div>
         {/* Red Team */}
         <div className="card p-0 overflow-hidden border-t-2 border-t-neon-red/60">
-          <p className="label-xs px-4 py-2.5 border-b border-white/5 text-red-400">
-            Time Vermelho
-          </p>
+          <p className="label-xs px-4 py-2.5 border-b border-white/5 text-red-400">Time Vermelho</p>
           <div className="px-3 py-2 space-y-0.5">
-            {redTeam.map(p => (
-              <ParticipantRow key={p.participantId} p={p}
-                isPlayer={p.puuid === puuid} side="red" />
-            ))}
+            {redTeam.length > 0
+              ? redTeam.map(p => (
+                  <ParticipantRow key={p.participantId} p={p}
+                    isPlayer={p.puuid === puuid} side="red" />
+                ))
+              : <p className="text-slate-600 text-xs text-center py-4 font-mono">Sem dados</p>
+            }
           </div>
         </div>
       </div>
@@ -453,11 +579,11 @@ export default function MatchDetailView() {
             key={id}
             onClick={() => setActiveTab(id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg
-                        text-xs font-semibold transition-all ${
-              activeTab === id
-                ? "bg-electric/15 border border-electric/30 text-electric"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-            }`}
+                        text-xs font-semibold transition-all
+                        ${activeTab === id
+                          ? "bg-electric/15 border border-electric/30 text-electric"
+                          : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                        }`}
           >
             <Icon size={12} className="hidden sm:block" />
             {label}
@@ -467,12 +593,16 @@ export default function MatchDetailView() {
 
       {/* ── Tab Content ──────────────────────────────────────────────────── */}
       <div className="card min-h-64">
+
         {/* Insights */}
         {activeTab === "insights" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {insightCards.map((c, i) => (
-              <InsightCard key={i} {...c} />
-            ))}
+            {insightCards.length > 0
+              ? insightCards.map((c, i) => <InsightCard key={i} {...c} />)
+              : <p className="text-slate-600 text-sm font-mono col-span-3 text-center py-8">
+                  Nenhum dado de análise disponível.
+                </p>
+            }
           </div>
         )}
 
@@ -480,14 +610,29 @@ export default function MatchDetailView() {
         {activeTab === "gold" && (
           tlLoading ? (
             <div className="flex items-center justify-center py-12 gap-2 text-slate-500 text-sm">
-              <Loader2 size={16} className="animate-spin text-electric" />Carregando dados…
+              <Loader2 size={16} className="animate-spin text-electric" />
+              Carregando dados de gold…
             </div>
           ) : tlError ? (
-            <p className="text-neon-red/70 text-sm font-mono text-center py-12">{tlError}</p>
+            <div className="flex flex-col items-center gap-3 py-12">
+              <p className="text-neon-red/70 text-sm font-mono">{tlError}</p>
+              <button
+                onClick={() => { setTlError(null); setTimeline(null); }}
+                className="btn-ghost flex items-center gap-1.5 text-xs"
+              >
+                <RefreshCw size={12} />Tentar Novamente
+              </button>
+            </div>
+          ) : !puuid ? (
+            <p className="text-slate-600 text-sm font-mono text-center py-12">
+              PUUID não disponível — refaça a busca do jogador.
+            </p>
           ) : timeline?.goldDiffs?.length ? (
             <GoldChart goldDiffs={timeline.goldDiffs} playerTeam={timeline.playerTeam} />
           ) : (
-            <p className="text-slate-600 text-sm font-mono text-center py-12">Dados de gold indisponíveis.</p>
+            <p className="text-slate-600 text-sm font-mono text-center py-12">
+              Dados de gold indisponíveis para esta partida.
+            </p>
           )
         )}
 
@@ -495,7 +640,18 @@ export default function MatchDetailView() {
         {activeTab === "timeline" && (
           tlLoading ? (
             <div className="flex items-center justify-center py-12 gap-2 text-slate-500 text-sm">
-              <Loader2 size={16} className="animate-spin text-electric" />Carregando timeline…
+              <Loader2 size={16} className="animate-spin text-electric" />
+              Carregando timeline…
+            </div>
+          ) : tlError ? (
+            <div className="flex flex-col items-center gap-3 py-12">
+              <p className="text-neon-red/70 text-sm font-mono">{tlError}</p>
+              <button
+                onClick={() => { setTlError(null); setTimeline(null); }}
+                className="btn-ghost flex items-center gap-1.5 text-xs"
+              >
+                <RefreshCw size={12} />Tentar Novamente
+              </button>
             </div>
           ) : (
             <TimelinePanel events={timeline?.events ?? []} />
@@ -504,17 +660,23 @@ export default function MatchDetailView() {
 
         {/* Stats */}
         {activeTab === "stats" && (
-          <StatsTable participants={participants ?? []} playerPuuid={puuid} />
+          participants?.length > 0 ? (
+            <StatsTable participants={participants} playerPuuid={puuid} />
+          ) : (
+            <p className="text-slate-600 text-sm font-mono text-center py-8">
+              Dados dos participantes indisponíveis.
+            </p>
+          )
         )}
       </div>
 
-      {/* ── Matchup Analysis (se disponível) ────────────────────────────── */}
-      {match.participants?.length > 0 && (
+      {/* ── Matchup Analysis ─────────────────────────────────────────────── */}
+      {participants?.length > 0 && (
         <div className="card space-y-4">
           <h3 className="label-xs flex items-center gap-2">
             <Swords size={11} />Comparativo da Partida
           </h3>
-          <MatchupGrid participants={match.participants} puuid={puuid} />
+          <MatchupGrid participants={participants} puuid={puuid} />
         </div>
       )}
     </div>

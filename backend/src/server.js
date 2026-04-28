@@ -592,7 +592,8 @@ app.get("/api/player/:riotId", async (req, res) => {
       avgDeaths: stats.avgDeaths, topChampion, matches: processedMatches,
     });
 
-    const payload = { gameName: cName, tagLine: cTag, stats, recentMatches: processedMatches, diagnosis };
+    // puuid incluído diretamente — o frontend não precisa extraí-lo dos participantes
+    const payload = { gameName: cName, tagLine: cTag, puuid, stats, recentMatches: processedMatches, diagnosis };
     cacheSet(PLAYER_CACHE, puuid, payload);
     log("RESPOSTA", `HTTP 200 → ${n} partidas | WR=${stats.winrate}% | top=${topChampion}`);
     return res.json(payload);
